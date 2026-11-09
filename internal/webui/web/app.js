@@ -257,6 +257,8 @@
   }
 
   App.render = async function () {
+    // 开通链接可能来自启动时的 URL，也可能来自运行中的深链（vmbra:// 会改 hash）
+    const pendingImport = App.takeImportParam ? App.takeImportParam() : "";
     const route = App.parseRoute();
     App.intent = route.params.size > 0 ? route.params : null;
     const key = currentKey();
@@ -277,6 +279,9 @@
       await fn(view);
     } catch (err) {
       view.innerHTML = '<div class="empty">加载失败：' + App.esc(err.message) + "</div>";
+    }
+    if (pendingImport) {
+      setTimeout(function () { App.openImport(pendingImport); }, 200);
     }
   };
 
@@ -324,12 +329,7 @@
         document.documentElement.setAttribute("data-theme", st.settings.theme);
       }
     });
-    // 开通链接：桌面深链或控制台 URL 带 import= 时，加载完直接弹导入框
-    const pendingImport = App.takeImportParam ? App.takeImportParam() : "";
     App.render();
-    if (pendingImport) {
-      setTimeout(function () { App.openImport(pendingImport); }, 250);
-    }
     clearInterval(App.timer);
     App.timer = setInterval(App.refreshStatus, 8000);
   };
