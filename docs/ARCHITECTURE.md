@@ -26,6 +26,7 @@ cmd/anywhered
              ├── forward   (TCP 中继)
              ├── deb       (ar/tar + 解压)
              ├── license   (授权中心客户端)
+             ├── importlink(开通链接编解码)
              └── store     (state.json)
 
 api ── service（唯一业务入口，不直接碰 sandbox 细节）
@@ -176,7 +177,46 @@ make app   ──▶ swiftc 编 desktop/main.swift
 
 分发要求：Developer ID 签名 + `notarytool` 公证；授权中心独立部署（HTTPS + `TRUST_PROXY=true` + `data/db.json` 备份）；`HMAC_SECRET`、`ADMIN_PASSWORD` 必须替换。
 
-## 11. 扩展点与已知边界
+## 11. 开通链接（交付导入）
+
+`internal/importlink` 定义载荷，`cmd/vmbra-link` 负责生成，`service.ApplyImport` 负责落地，控制台 `views-import.js` 负责勾选与回显。
+
+```
+Payload{v, name, note, vps{host,port,user,password,lang,timezone,region}, tools[], createdAt}
+        │ base64url（无填充）
+        ▼
+vmbra://import/<payload>   ← 桌面壳 Info.plist 注册的 scheme，点击直达
+http://127.0.0.1:7788/#/settings?import=<payload>   ← 已开控制台时可直接粘地址
+.vmbrapkg（纯 JSON，同一份载荷）                     ← 离线交付/留档
+```
+
+三条入口共用 `importlink.Decode`，因此链接、控制台 URL、JSON 文件互为等价物。
+
+导入状态机：
+
+```
+preview ──▶ 客户勾选 ──▶ apply
+              │            ├─ select   保存 SetupSelection（tools / vm）
+              │            ├─ vps      UpdateVPS(host,port,user,lang,tz)
+              │            ├─ key      EnsureVPSKey()（ed25519，落在数据目录 0600）
+              │            ├─ install-key  vps.InstallKey()：SSH_ASKPASS 一次性口令登录，追加公钥
+              │            ├─ tunnel   StartVPS()（可选）
+              │            └─ setup    StartSetup()（可选，按勾选生成 --tools 参数）
+              ▼
+        逐项 steps[{id,label,status,detail}] 回显；失败只标记该步，不吞掉其它结果
+```
+
+几个刻意设计：
+
+- **口令只活一次**：`InstallKey` 把口令写进 0600 临时文件，交给 `SSH_ASKPASS_REQUIRE=force` 的 ssh 读取，
+  调用结束即删；`store.VPS` 里没有任何密码字段，隧道与终端都走密钥。
+- **不下载是默认**：`ApplyImport` 只写配置与密钥，`runSetup` 需要客户明确打开，且受授权校验约束
+  （未授权时按钮置灰，提示先激活）。
+- **失败可解释**：装公钥失败不会中断导入（除非同时要求建隧道），步骤条会写明「口令被拒 / 超时 / 端口不通」，
+  用户仍可手工执行页面给出的一次性安装命令。
+- **版本可演进**：`v` 高于客户端支持版本时直接拒绝并提示升级，避免旧客户端半解析新载荷。
+
+## 12. 扩展点与已知边界
 
 - **虚拟机后端**：`Workstation.Driver = lima` 已留位；内存上限、root 场景、独立网络栈需该后端提供。
 - **网络出口**：本地进程隔离共享宿主网络栈，因此"出口"默认是宿主出口；要独立公网 IP 需 VPS 隧道或虚拟机后端。

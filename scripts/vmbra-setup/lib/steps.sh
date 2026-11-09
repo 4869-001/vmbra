@@ -263,6 +263,36 @@ step_guest() {
   fi
 }
 
+# ---------- 7.5 Google Chrome ----------
+step_chrome() {
+  step_start chrome "安装 Google Chrome"
+  if [ "$OS_NAME" != "Darwin" ]; then
+    step_skip "非 macOS，跳过"
+    return 0
+  fi
+  local app="/Applications/Google Chrome.app"
+  local user_app="$HOME/Applications/Google Chrome.app"
+  if [ -d "$app" ] || [ -d "$user_app" ]; then
+    step_skip "已安装"
+    return 0
+  fi
+  if [ "$DRY_RUN" = "1" ]; then
+    dry_cmd "brew install --cask google-chrome"
+    step_skip "dry-run 跳过 Chrome 下载"
+    return 0
+  fi
+  if ! have brew; then
+    step_warn "未安装 Homebrew，无法自动安装 Chrome；可继续用系统浏览器"
+    return 0
+  fi
+  info "通过 Homebrew 安装 Google Chrome（约 180MB）"
+  if brew install --cask google-chrome >> "$LOG_FILE" 2>&1; then
+    step_ok "已安装"
+  else
+    step_warn "Chrome 安装失败，可手动安装后重新运行：https://www.google.com/chrome/"
+  fi
+}
+
 # ---------- 8. Claude Code ----------
 step_claude() {
   step_start claude "安装 Claude Code"
@@ -302,23 +332,39 @@ export PATH=\"$NPM_GLOBAL_PREFIX/bin:$VMBRA_HOME/toolchain/node/bin:\$PATH\""
 }
 
 # ---------- 10. 自检 ----------
+# 只检查勾选过的工具：客户取消勾选的项不参与判定，也不影响退出码。
 step_verify() {
   step_start verify "环境自检"
   local results=""
-  local failed=0
+  local failed=0 bin id
   for bin in git node npm claude; do
+    id="$bin"
+    [ "$bin" = "npm" ] && id="node"
+    tool_wanted "$id" || continue
     if have "$bin"; then
       results="$results ${bin}✓"
     else
       results="$results ${bin}✗"
+      # Claude Code 属于可选工具，缺失只提示不阻断
       [ "$bin" != "claude" ] && failed=1
     fi
   done
+  if tool_wanted chrome; then
+    if [ -d "/Applications/Google Chrome.app" ] || [ -d "$HOME/Applications/Google Chrome.app" ]; then
+      results="$results chrome✓"
+    else
+      results="$results chrome✗"
+    fi
+  fi
+  if [ -z "$results" ]; then
+    step_ok "未勾选任何工具，仅保留基础环境"
+    return 0
+  fi
   if [ "$failed" = "1" ]; then
     step_fail "关键组件缺失：$results"
     return 1
   fi
-  if ! have claude; then
+  if tool_wanted claude && ! have claude; then
     step_warn "基础环境就绪，但 Claude Code 未安装：${results}（可重新运行本脚本重试）"
     return 0
   fi

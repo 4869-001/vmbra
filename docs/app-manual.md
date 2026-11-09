@@ -219,6 +219,38 @@ curl -X POST -H "X-Anywhere-Token: $TOKEN" \
 > 远端绑定 `0.0.0.0` 需要 VPS 的 `sshd_config` 开启 `GatewayPorts yes`；
 > 关闭时端口只绑在 VPS 回环上，适合配合 Nginx 反向代理使用。
 
+## 开通链接（交付导入）
+
+服务商把 VPS 信息打包成一条链接，客户机导入即完成配置，不用手抄主机/端口/密码：
+
+```bash
+./bin/vmbra-link --host 203.0.113.10 --port 1841 --user root --password '***' \
+  --name '客户 A' --tools chrome,node,git,claude --out /tmp/customer-a.vmbrapkg
+```
+
+输出 `vmbra://import/<payload>`；桌面程序注册了 `vmbra` 协议，点击即打开「设置 → 配置导入」弹窗。
+链接也可粘进控制台，或用 `http://127.0.0.1:7788/#/settings?import=<payload>` 直达。
+
+导入分两步，客户全程可选：
+
+1. **预览**（`POST /api/import/preview`）：显示出口节点、备注、风险提示（含口令 / 会覆盖现有出口 / 未激活），
+   并用本机实际探测标出哪些工具**已安装**；
+2. **应用**（`POST /api/import/apply`）：写入 VPS 配置 → 生成本机密钥 →（可选）用口令一次性装公钥 →
+   （可选）建隧道 →（可选）按勾选提交安装任务。
+
+可下载的工具与默认勾选：
+
+| 工具 | 默认 | 落地方式 |
+| --- | --- | --- |
+| Google Chrome | 勾选 | `brew install --cask google-chrome`；已装则跳过 |
+| Node.js LTS | 勾选 | Homebrew 或官方压缩包（免 brew） |
+| Git | 勾选 | Xcode CLT 自带或 Homebrew |
+| Claude Code CLI | 勾选 | `npm install -g` 到用户级目录 |
+| Linux 虚拟机终端 | **不勾选** | lima + Ubuntu，约 1GB，需要时再勾 |
+
+取消勾选即不下载；脚本对未勾选的阶段输出 `skip`，进度分母固定 12，客户随时能看到「哪些跳过、哪些装了」。
+导入只写配置与密钥：口令不落盘，装完公钥后隧道/终端/校验全部改走密钥。
+
 ## 功能板块
 
 | 板块 | 能力 |
@@ -277,6 +309,9 @@ curl -X POST -H "X-Anywhere-Token: $TOKEN" \
 | GET PUT DELETE | `/api/files`、`/api/files/content` | 列目录 / 读写文件 / 删除 / 下载 / 上传 / 新建目录 |
 | GET POST PATCH DELETE | `/api/network/...` | 出网开关、代理、端口转发（含 `/forwards/{id}/test`）、连通性测试 |
 | GET PUT POST | `/api/vps`、`/api/vps/key·start·stop·test·egress` | VPS 出入口配置、公钥、隧道启停、SSH 连通性与出口 IP 对比 |
+| POST | `/api/import/preview` | 解析开通链接，返回安装清单与本机已装探测（不写状态） |
+| POST | `/api/import/apply` | 落 VPS 配置 / 装公钥 / 建隧道 / 提交安装任务，返回逐步结果 |
+| GET | `/api/import/link` | 用当前配置反向生成链接（不含口令） |
 | GET PUT POST | `/api/browser`、`/api/browser/open·verify` | 受控浏览器配置、启动独立 profile（`POST /open` 可带 `{"url":"…"}` 在同 profile 内打开页面）、headless 校验语言与时区 |
 | GET PUT | `/api/env`、`/api/env/vars·mounts·desktop` | 环境配置 |
 | GET POST DELETE | `/api/maintenance/...` | 快照、恢复、重置、Finder、导出工作区（`/export` 下载 tar.gz） |

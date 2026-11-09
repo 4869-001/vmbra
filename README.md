@@ -11,9 +11,11 @@ macOS 上的**隔离工作站**：在本机提供一个"可运行不可信内容
 ```
 vmbra/
 ├── cmd/anywhered/          管理服务入口（Go 单二进制）
+├── cmd/vmbra-link/         交付工具：把 VPS 信息生成客户可导入的开通链接
 ├── internal/               服务端全部实现（见下方模块表）
 │   ├── api/                HTTP 路由、鉴权、WebSocket 通道
-│   ├── service/            业务编排：工作站/文件/应用/网络/环境/维护/诊断/设置/授权/一键配置
+│   ├── service/            业务编排：工作站/文件/应用/网络/环境/维护/诊断/设置/授权/开通导入/一键配置
+│   ├── importlink/         开通链接编解码（vmbra://import/<base64url>）
 │   ├── sandbox/            sandbox-exec 策略、PTY 会话、工作区文件系统、快照
 │   ├── tasks/              后台任务队列（实时日志、取消、持久化）
 │   ├── store/              状态持久化（原子写 ~/.anywhere/state.json）
@@ -150,9 +152,42 @@ make test    # go test ./...（含沙箱逃逸测试）
 make smoke   # 起临时实例跑接口冒烟
 ```
 
+## 客户交付：开通链接
+
+服务商侧填好 VPS 信息，生成一条链接发给客户；客户在 Vmbra 里粘贴（或直接点开 `vmbra://` 深链）即完成导入，
+再按自己的需要勾选要下载的工具。
+
+```bash
+make link HOST=203.0.113.10 PORT=1841 USER=root PASSWORD='***' NAME='客户 A'
+# 等价于
+./bin/vmbra-link --host 203.0.113.10 --port 1841 --user root --password '***' \
+  --name '客户 A' --note 'Ubuntu 26.04 · LAX' --tools chrome,node,git,claude --out /tmp/a.vmbrapkg
+```
+
+```
+服务商                                客户机
+vmbra-link ── vmbra://import/<payload> ──▶ 桌面壳（注册 vmbra:// 协议）/ 控制台粘贴
+                                             │ POST /api/import/preview
+                                             │  出口节点 · 风险提示 · 本机已装探测
+                                             │ 客户逐项勾选/取消
+                                             ▼ POST /api/import/apply
+                        写入 VPS 配置 → 生成本机密钥 → 用口令装公钥 → 可选建隧道 → 可选提交安装
+```
+
+| 工具 | 默认 | 说明 |
+| --- | --- | --- |
+| Google Chrome | 勾选 | 受控浏览器、独立 profile（时区/语言/出口对齐） |
+| Node.js LTS | 勾选 | Claude Code 与 npm 工具链的运行时 |
+| Git | 勾选 | 代码拉取与版本管理 |
+| Claude Code CLI | 勾选 | 终端里的 AI 编程助手 |
+| Linux 虚拟机终端 | 不勾选 | lima + Ubuntu 镜像，约 1GB，需要 root/内核级隔离时再装 |
+
+取消勾选即不下载：`setup.sh --tools chrome,node --skip-vm` 语义相同，未勾选的阶段输出 `skip`，
+进度分母固定 12，客户随时能看到哪些装了、哪些跳过。导入只写配置与密钥，口令不落盘。
+
 ## 文档
 
-- [`docs/app-manual.md`](docs/app-manual.md) —— 客户端功能手册（隔离模型、九个板块、接口清单、数据目录）
+- [`docs/app-manual.md`](docs/app-manual.md) —— 客户端功能手册（隔离模型、九个板块、开通链接、接口清单、数据目录）
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) —— 架构详解（包依赖、状态机、协议、授权时序、构建分发）
 - [`license-service/README.md`](license-service/README.md) —— 授权中心部署与运营
 

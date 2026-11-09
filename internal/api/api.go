@@ -131,6 +131,11 @@ func (s *Server) routes() {
 	m.HandleFunc("GET /api/setup/preflight", s.handleSetupPreflight)
 	m.HandleFunc("POST /api/setup/run", s.handleSetupRun)
 
+	// 开通链接（交付时生成，客户机导入）
+	m.HandleFunc("POST /api/import/preview", s.handleImportPreview)
+	m.HandleFunc("POST /api/import/apply", s.handleImportApply)
+	m.HandleFunc("GET /api/import/link", s.handleImportLink)
+
 	// 受控浏览器
 	m.HandleFunc("GET /api/browser", s.handleBrowser)
 	m.HandleFunc("PUT /api/browser", s.handleBrowserUpdate)

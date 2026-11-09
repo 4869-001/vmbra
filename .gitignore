@@ -17,3 +17,7 @@ license-service/*.local.json
 # 本地覆盖配置
 config.local.json
 state.json
+/bin/vmbra-link
+
+# 开通链接载荷（可能含口令）
+*.vmbrapkg

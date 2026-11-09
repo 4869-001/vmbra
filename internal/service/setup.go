@@ -10,8 +10,13 @@ import (
 	"path/filepath"
 	"strings"
 
+	"anywhere/internal/importlink"
 	"anywhere/internal/tasks"
 )
+
+// setupTotalSteps 是 setup.sh 的固定阶段数，用于进度条分母。
+// 未勾选的工具同样会输出一条 skip 事件，所以分母恒定。
+const setupTotalSteps = 12
 
 // setupEvent 对应 setup.sh --json 输出的 NDJSON 事件。
 type setupEvent struct {
@@ -70,9 +75,17 @@ func (s *Service) SetupPreflight() map[string]any {
 		out["error"] = err.Error()
 	}
 
-	host := s.Store.Copy().License.VPS.Host
+	st := s.Store.Copy()
+	host := st.License.VPS.Host
 	out["vpsHost"] = host
 	out["vpsReady"] = host != ""
+	tools := normalizeToolIDs(st.Setup.Tools)
+	if len(tools) == 0 {
+		tools = importlink.DefaultTools()
+	}
+	out["tools"] = tools
+	out["vm"] = st.Setup.VM
+	out["totalSteps"] = setupTotalSteps
 	return out
 }
 
@@ -92,8 +105,18 @@ func (s *Service) StartSetup(force bool) (*tasks.Item, error) {
 	vpsHost := st.License.VPS.Host
 	vpsPort := st.License.VPS.Port
 
+	tools := normalizeToolIDs(st.Setup.Tools)
+	if len(tools) == 0 {
+		tools = importlink.DefaultTools()
+	}
+
 	item := s.Tasks.Start("setup", "一键配置环境", func(ctx context.Context, it *tasks.Item) error {
-		args := []string{script, "--json", "--skip-license", "--yes"}
+		args := []string{script, "--json", "--skip-license", "--yes", "--tools", strings.Join(tools, ",")}
+		if st.Setup.VM {
+			args = append(args, "--vm")
+		} else {
+			args = append(args, "--skip-vm")
+		}
 		if vpsHost != "" {
 			if vpsPort == 0 {
 				vpsPort = 443
@@ -125,9 +148,8 @@ func (s *Service) StartSetup(force bool) (*tasks.Item, error) {
 		scanner := bufio.NewScanner(stdout)
 		scanner.Buffer(make([]byte, 0, 64<<10), 1<<20)
 
-		// 脚本固定 11 个阶段（license/clt/brew/git/node/vps/vm/guest/claude/profile/verify），
-		// 跳过（--skip-vm 等）也算一步，因此分母恒定。
-		const setupTotalSteps = 11
+		// 脚本固定 12 个阶段（license/clt/brew/git/node/vps/vm/guest/chrome/claude/profile/verify），
+		// 未勾选或跳过（--skip-vm 等）也算一步，因此分母恒定。
 		var done int
 		for scanner.Scan() {
 			line := strings.TrimSpace(scanner.Text())

@@ -96,6 +96,20 @@
       "</section>" +
 
       '<section class="card">' +
+        '<div class="card-head"><div><div class="card-title">配置导入</div>' +
+          '<div class="card-sub">粘贴服务商发来的开通链接，按需勾选要下载的工具；也可以把当前配置导出成链接</div></div>' +
+          '<span class="chip blue">vmbra://import</span></div>' +
+        '<div class="card-body">' +
+          '<textarea class="input" id="importLink" rows="3" spellcheck="false" placeholder="vmbra://import/…"></textarea>' +
+          '<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">' +
+            '<button class="btn primary" data-act="import-open">导入并选择工具</button>' +
+            '<button class="btn" data-act="import-export">复制当前配置链接</button>' +
+          "</div>" +
+          '<div class="hint-box" style="margin-top:10px">导入只写入配置与密钥；未勾选的工具不会下载。Linux 虚拟机终端（lima）需要额外勾选，约 1GB。</div>' +
+        "</div>" +
+      "</section>" +
+
+      '<section class="card">' +
         '<div class="card-head"><div><div class="card-title">访问与安全</div>' +
           '<div class="card-sub">控制台仅监听回环地址，接口调用需要访问令牌</div></div></div>' +
         '<div class="card-body">' +
@@ -209,6 +223,29 @@
         }
       });
     }
+
+    // ---- 配置导入 / 导出 ----
+    root.querySelector('[data-act="import-open"]').addEventListener("click", function () {
+      const input = root.querySelector("#importLink");
+      const value = (input.value || "").trim();
+      if (!value) {
+        A.toast("请先粘贴开通链接", "err");
+        input.focus();
+        return;
+      }
+      A.openImport(value);
+    });
+
+    root.querySelector('[data-act="import-export"]').addEventListener("click", async function () {
+      try {
+        const res = await A.api("/api/import/link");
+        root.querySelector("#importLink").value = res.link || "";
+        await navigator.clipboard.writeText(res.link || "");
+        A.toast("链接已复制（不含口令）", "ok");
+      } catch (err) {
+        A.toast(err.message, "err");
+      }
+    });
 
     const btnCopy = root.querySelector('[data-act="copy-fp"]');
     if (btnCopy) {

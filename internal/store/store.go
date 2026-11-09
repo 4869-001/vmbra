@@ -169,6 +169,14 @@ type AuditEntry struct {
 	Detail     string    `json:"detail,omitempty"`
 }
 
+// SetupSelection 记录「开通链接」里勾选的安装项，供一键配置脚本按需安装。
+// Tools 为空表示按默认清单安装（chrome/node/git/claude）。
+type SetupSelection struct {
+	Tools []string  `json:"tools"`
+	VM    bool      `json:"vm"`
+	At    time.Time `json:"at,omitempty"`
+}
+
 // TaskRecord 是任务队列中可持久化的元信息。
 type TaskRecord struct {
 	ID         string     `json:"id"`
@@ -184,22 +192,23 @@ type TaskRecord struct {
 
 // State 是完整的状态文档。
 type State struct {
-	Workstations []Workstation `json:"workstations"`
-	ActiveID     string        `json:"activeId"`
-	Settings     Settings      `json:"settings"`
-	Locale       Locale        `json:"locale"`
-	DNS          DNS           `json:"dns"`
-	Forwards     []PortForward `json:"forwards"`
-	Proxy        Proxy         `json:"proxy"`
-	Desktop      Desktop       `json:"desktop"`
-	Browser      Browser       `json:"browser"`
-	VPS          VPS           `json:"vps"`
-	License      License       `json:"license"`
-	Env          []EnvVar      `json:"env"`
-	Mounts       []string      `json:"mounts"`
-	Snapshots    []Snapshot    `json:"snapshots"`
-	Audit        []AuditEntry  `json:"audit"`
-	Tasks        []TaskRecord  `json:"tasks"`
+	Workstations []Workstation  `json:"workstations"`
+	ActiveID     string         `json:"activeId"`
+	Settings     Settings       `json:"settings"`
+	Locale       Locale         `json:"locale"`
+	DNS          DNS            `json:"dns"`
+	Forwards     []PortForward  `json:"forwards"`
+	Proxy        Proxy          `json:"proxy"`
+	Desktop      Desktop        `json:"desktop"`
+	Browser      Browser        `json:"browser"`
+	VPS          VPS            `json:"vps"`
+	License      License        `json:"license"`
+	Setup        SetupSelection `json:"setup"`
+	Env          []EnvVar       `json:"env"`
+	Mounts       []string       `json:"mounts"`
+	Snapshots    []Snapshot     `json:"snapshots"`
+	Audit        []AuditEntry   `json:"audit"`
+	Tasks        []TaskRecord   `json:"tasks"`
 
 	// LegacyWorkstation 只用于读取旧版单工作站状态，迁移后置空，不再写出。
 	LegacyWorkstation *Workstation `json:"workstation,omitempty"`

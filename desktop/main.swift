@@ -16,6 +16,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
     private var pollTimer: Timer?
     private var daemon: Process?
     private var state = "unknown"
+    /// 通过 vmbra:// 深链打开、但控制台还没加载完时，先存在这里。
+    private var pendingImport: String?
 
     /// 快捷跳转项：菜单栏与 ⌘1~⌘4 使用，直接落到控制台对应面板。
     private let jumps: [(key: String, title: String, hash: String, combo: String)] = [
@@ -46,12 +48,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
                 return
             }
             self.loadConsole()
+            if let payload = self.pendingImport {
+                self.pendingImport = nil
+                self.navigate("/settings?import=" + payload)
+            }
             self.autoStartIfStopped()
             self.startPolling()
         }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
+
+    /// 开通链接：vmbra://import/<payload> 打开客户端时，直接跳到导入界面。
+    func application(_ application: NSApplication, open urls: [URL]) {
+        guard let url = urls.last, url.scheme == "vmbra" else { return }
+        var payload = url.absoluteString
+        if let range = payload.range(of: "vmbra://import/") {
+            payload = String(payload[range.upperBound...])
+        }
+        if let cut = payload.firstIndex(where: { $0 == "?" || $0 == "#" }) {
+            payload = String(payload[..<cut])
+        }
+        guard !payload.isEmpty else { return }
+        if window == nil {
+            pendingImport = payload
+            return
+        }
+        navigate("/settings?import=" + payload)
+    }
 
     func applicationWillTerminate(_ notification: Notification) {
         pollTimer?.invalidate()

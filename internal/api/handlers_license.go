@@ -56,9 +56,20 @@ func (s *Server) handleSetupPreflight(w http.ResponseWriter, r *http.Request) {
 // handleSetupRun 提交一键配置任务，返回 taskId 供 WS 跟踪进度。
 func (s *Server) handleSetupRun(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		Force bool `json:"force"`
+		Force bool     `json:"force"`
+		Tools []string `json:"tools"`
+		VM    *bool    `json:"vm"`
 	}
 	_ = decode(r, &body)
+
+	// 界面可在提交前覆盖安装清单（例如客户当场取消勾选某个工具）
+	if body.Tools != nil || body.VM != nil {
+		vm := body.VM != nil && *body.VM
+		if err := s.svc.SetSetupSelection(body.Tools, vm); err != nil {
+			fail(w, err)
+			return
+		}
+	}
 
 	item, err := s.svc.StartSetup(body.Force)
 	if err != nil {

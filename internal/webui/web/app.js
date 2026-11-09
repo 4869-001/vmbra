@@ -324,7 +324,12 @@
         document.documentElement.setAttribute("data-theme", st.settings.theme);
       }
     });
+    // 开通链接：桌面深链或控制台 URL 带 import= 时，加载完直接弹导入框
+    const pendingImport = App.takeImportParam ? App.takeImportParam() : "";
     App.render();
+    if (pendingImport) {
+      setTimeout(function () { App.openImport(pendingImport); }, 250);
+    }
     clearInterval(App.timer);
     App.timer = setInterval(App.refreshStatus, 8000);
   };
