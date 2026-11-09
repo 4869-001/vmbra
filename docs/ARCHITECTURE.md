@@ -1,0 +1,186 @@
+# Vmbra 架构详解
+
+本文描述 Vmbra 的分层、包依赖、运行状态机、协议与授权链路。功能层面请配合 [`app-manual.md`](app-manual.md) 阅读。
+
+## 1. 设计取舍
+
+| 决策 | 理由 |
+| --- | --- |
+| 单二进制 + 内嵌控制台 | 客户机上没有构建链、没有前端依赖漂移，`copy` 一个文件即可运行 |
+| 进程级隔离优先，虚拟机可选 | macOS `sandbox-exec` 不需要虚拟化开销，秒级启动；需要 root/内核态的场景才上 lima |
+| 状态落 JSON 而非数据库 | 单个用户、单实例、结构简单；原子写 + 内存快照已足够，免运维 |
+| 授权中心独立部署 | 授权与发行解耦，客户端只持有短周期令牌，换套餐/吊销不必发版 |
+| 一键配置走幂等 bash | 面向客户的安装动作必须可重复执行、可 dry-run、可观测（NDJSON） |
+
+## 2. 包依赖
+
+```
+cmd/anywhered
+   └── config ─ store ─ sandbox ─ tasks ─ webui ─ api ─ service
+                                                 │
+   service ──┬── sandbox   (策略/PTY/文件/快照)
+             ├── tasks     (队列/日志/取消)
+             ├── vps       (ssh 隧道)
+             ├── browser   (受控 Chrome)
+             ├── dnsproxy  (UDP 中继)
+             ├── forward   (TCP 中继)
+             ├── deb       (ar/tar + 解压)
+             ├── license   (授权中心客户端)
+             └── store     (state.json)
+
+api ── service（唯一业务入口，不直接碰 sandbox 细节）
+webui ── embed.FS（静态资源，无运行时依赖）
+```
+
+约束：`api` 只做参数解析与响应，业务判断全在 `service`；`sandbox`/`vps`/`browser` 只暴露能力，不读 `store`。
+
+## 3. 请求生命周期
+
+```
+HTTP 请求
+  → guard：Host 白名单（防 DNS rebinding）
+           → 令牌校验（X-Anywhere-Token / ?token= / Cookie）
+           → WS 追加 Origin 校验
+  → mux 路由（GET/POST/PATCH/DELETE，Go 1.22 pattern）
+  → handler：decode + 调 service
+  → ok()/fail()：统一 JSON 信封 { ok, data } / { ok:false, error }
+```
+
+WebSocket 三条通道：
+
+| 通道 | 用途 | 帧格式 |
+| --- | --- | --- |
+| `/api/apps/terminal` | 交互式 shell | 二进制帧 = PTY 输入输出；文本帧 = 控制指令（resize 等） |
+| `/api/apps/desktop/ws` | noVNC ↔ VNC | 透传 RFB 帧 |
+| `/api/tasks/{id}/ws` | 任务实时日志 | 文本帧，逐行推送 |
+
+## 4. 工作站状态机
+
+```
+stopped ──start──▶ starting ──就绪──▶ running ──stop──▶ stopping ──▶ stopped
+   ▲                   │                  │                │
+   └──── 失败/回收 ─────┴───── error ◀────┴────────────────┘
+```
+
+- 只有 `ActiveID` 指向的工作站处于激活态：进程隔离共享内核与网络栈，并行多台只会让"当前是谁"含混。
+- 管理服务启动时回收上次进程遗留的 `running/starting/stopping` 标记，避免"假运行"。
+- 工作站字段（`store.Workstation`）承载：根目录、驱动（`local`/`lima`）、规格（CPU/内存/磁盘）、出网开关、语言/时区、代理模式、是否走 VPS。
+
+## 5. 隔离实现
+
+`internal/sandbox` 在启动时生成两份策略文件到工作站目录：
+
+| 文件 | 场景 |
+| --- | --- |
+| `.policy.nonet.sbpl` | 默认，`deny network*` |
+| `.policy.net.sbpl` | 开启"工作站出网"后使用 |
+
+执行管线：
+
+```
+ExecRequest{Script, Args, Env, Timeout, Network}
+  → buildCommand：sandbox-exec -f <policy> → sh -c ...（或直接可执行文件）
+  → ulimit -t/-f/-n + 注入 BaseEnv（TERM/COLORTERM/LANG/TZ/PATH）
+  → exec.Cmd + Setpgid  → 超时 killGroup（整个进程组）
+  → ExecResult{ExitCode, Duration, Output}
+StartShell → PTY（creack/pty）→ Session{Read/Write/Resize/Close}
+```
+
+自检（`probe`）不是"能否起进程"，而是拿当前策略真实跑六项能力探测：进程启动、工作区内写入、工作区外写入、访问宿主回环、工作站内回环监听、非回环网络，逐项比对期望与实测。`go test ./internal/sandbox/` 另有逃逸测试（工作区外写、默认网络拒绝、路径穿越、快照投毒）。
+
+快照：工作区打包为 `snapshots/<id>.tar.gz`，恢复走先校验再解包（拒绝越界条目）。
+
+## 6. 任务系统
+
+```
+Manager.Start(kind,title,fn) → Item
+  Item：日志环形缓冲 + 订阅者（WS）+ 状态 + 耗时
+  Manager：串行 dispatch（同时只跑一个后台任务），排队可取消
+  记录：store.TaskRecord（id/kind/title/status/时间/日志文件）
+```
+
+典型来源：`.deb` 安装、运行脚本、一键配置环境、导出工作区、诊断包。日志文件落在 `~/.anywhere/logs/`，控制台通过 WS 实时跟随，重连后先回放快照。
+
+## 7. 授权链路
+
+```
+客户端                                   授权中心 license-service
+  │  POST /api/v1/activate                  │
+  │  { key, fingerprint, appVersion }       │ 1. 授权码存在 & 未吊销
+  ├────────────────────────────────────────▶│ 2. IP 策略：免 IP / 白名单命中
+  │                                         │ 3. 设备绑定：首激活写指纹，换机需解绑
+  │                                         │ 4. 下限版本校验
+  │  { token, expireAt, offlineGrace,       │ 5. 签发 HMAC(sha256) 会话令牌
+  │    plan, endpoints[], client }          │ 6. 下发出口节点与套餐
+  │◀────────────────────────────────────────┤
+  │ 落 store.License（key 掩码展示）        │
+  │ 后台心跳 POST /api/v1/heartbeat（周期）  │ 续期 + 吊销检测 + 出口变更下发
+  │ 不可达 → 进入离线宽限，超过 GraceUntil 视为不可用
+```
+
+边界职责：
+
+| 关注点 | 客户端 | 授权中心 |
+| --- | --- | --- |
+| 授权码校验 | — | 生成/吊销/绑定设备/换套餐 |
+| IP 策略 | — | 全局白名单 + 单码独立 IP，默认拒绝 |
+| 会话令牌 | 保存与续期 | 签发与验签（HMAC） |
+| 离线宽限 | 判定与提示 | 下发给定时长 |
+| 出口节点 | 消费 `host:port` 建隧道 | 编排与下发 |
+
+## 8. 一键配置协议
+
+`scripts/vmbra-setup/setup.sh` 是脚本唯一源（`desktop/build.sh` 会打进 `.app/Contents/Resources`），`service/setup.go` 以 `--json --skip-license --yes` 调用并解析 NDJSON：
+
+```
+{"event":"step","id":"node","title":"安装 Node.js","status":"running"}
+{"event":"step","id":"node","title":"安装 Node.js","status":"ok","detail":"v20.11.0"}
+{"event":"log","level":"info","message":"..."}
+{"event":"done","ok":true}
+```
+
+固定 11 个阶段（license / clt / brew / git / node / vps / vm / guest / claude / profile / verify），跳过也计入，因此进度分母恒定。`stderr` 直接进任务日志；脚本幂等，产物写入 `~/.vmbra/logs/`。
+
+客户端侧前置条件由 `SetupPreflight` 给出（授权是否可用、脚本是否存在、是否已有 lima 实例），`StartSetup` 在未授权且非 `force` 时直接拒绝。
+
+## 9. 数据模型与目录
+
+```
+~/.anywhere/
+├── state.json        # Workstation[] / Settings / Network / Env / DNS / Locale / VPS / Browser / License / Snapshots / Tasks / 审计
+├── token             # 访问令牌 0600
+├── workstation/
+│   ├── workspace/    # 唯一可写区域
+│   ├── home/         # 沙箱家目录（.anywhere.env 由服务端重写）
+│   ├── tmp/
+│   └── .policy.*.sbpl
+├── snapshots/
+├── vps/              # 专用密钥与 known_hosts
+├── browser/          # 受控 Chrome 独立 profile
+├── bin/chrome-us     # 生成的启动脚本，供桌面图标调用
+└── logs/
+```
+
+`store` 的写入策略：`Update(fn)` 在锁内改内存副本 → 临时文件 + rename 原子替换 → 通知订阅者。旧结构在 `normalize()` 中补默认值与迁移。
+
+## 10. 构建与分发
+
+```
+make build ──▶ bin/anywhered（-trimpath -ldflags "-s -w"）
+make app   ──▶ swiftc 编 desktop/main.swift
+              → dist/AnyWhere.app/Contents/MacOS/AnyWhere
+              → 复制 bin/anywhered 到 Contents/Resources/
+              → 复制 scripts/vmbra-setup/ 到 Contents/Resources/scripts/
+              → codesign -（本地自用 ad-hoc）
+```
+
+分发要求：Developer ID 签名 + `notarytool` 公证；授权中心独立部署（HTTPS + `TRUST_PROXY=true` + `data/db.json` 备份）；`HMAC_SECRET`、`ADMIN_PASSWORD` 必须替换。
+
+## 11. 扩展点与已知边界
+
+- **虚拟机后端**：`Workstation.Driver = lima` 已留位；内存上限、root 场景、独立网络栈需该后端提供。
+- **网络出口**：本地进程隔离共享宿主网络栈，因此"出口"默认是宿主出口；要独立公网 IP 需 VPS 隧道或虚拟机后端。
+- **DNS**：`internal/dnsproxy` 只服务显式指定解析器的工具与诊断；`getaddrinfo` 仍走系统解析器（改系统配置需权限）。
+- **端口转发**：仅 TCP；目标端口在工作站内必须能监听回环，出网关闭时 `guestOk=false`。
+- **指纹对齐**：只对齐时区/语言/Accept-Language/出口，不伪造 Canvas/WebGL/字体等 OS 级指纹。
+- **信任边界**：当前系统用户。能读令牌的本机进程即可控制服务；不要暴露到局域网。

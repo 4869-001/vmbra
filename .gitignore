@@ -1,0 +1,19 @@
+# 构建产物
+/bin/anywhered
+/dist/
+/.playwright-cli/
+*.log
+.DS_Store
+
+# 运行时数据 / 依赖
+node_modules/
+license-service/data/
+license-service/*.local.json
+.env
+.env.*
+*.pem
+*.key
+
+# 本地覆盖配置
+config.local.json
+state.json

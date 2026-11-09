@@ -1,0 +1,16 @@
+{
+  "name": "vmbra-license-service",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Vmbra 授权中心：IP 白名单 + 授权码激活 + 心跳续期",
+  "type": "commonjs",
+  "main": "src/server.js",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "genkey": "node src/genkey.js"
+  }
+}

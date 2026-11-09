@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Vmbra 授权中心</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%2314161b'/%3E%3Ctext x='16' y='22' font-size='17' font-family='Arial' fill='white' text-anchor='middle'%3EV%3C/text%3E%3C/svg%3E" />
+<style>
+  :root {
+    --bg: #f5f6f8;
+    --card: #ffffff;
+    --line: #e8eaee;
+    --text: #1a1d23;
+    --muted: #7a8290;
+    --accent: #1f6feb;
+    --green: #17864a;
+    --amber: #b26a00;
+    --red: #c9342c;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 14px;
+    -webkit-font-smoothing: antialiased;
+  }
+  button { font-family: inherit; cursor: pointer; }
+  input, select { font-family: inherit; }
+
+  /* ---------- 登录 ---------- */
+  #login {
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+  }
+  .login-card {
+    width: 340px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    padding: 32px 28px;
+    box-shadow: 0 8px 30px rgba(20, 25, 40, .06);
+  }
+  .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 22px; }
+  .logo {
+    width: 34px; height: 34px; border-radius: 10px; background: #14161b; color: #fff;
+    display: grid; place-items: center; font-weight: 700; font-size: 15px;
+  }
+  .brand h1 { font-size: 16px; margin: 0; font-weight: 600; }
+  .brand p { margin: 2px 0 0; font-size: 12px; color: var(--muted); }
+  label { display: block; font-size: 12px; color: var(--muted); margin: 14px 0 6px; }
+  input[type=text], input[type=password], input[type=number], select {
+    width: 100%; padding: 9px 11px; border: 1px solid var(--line); border-radius: 9px;
+    font-size: 13px; background: #fff; outline: none;
+  }
+  input:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(31,111,235,.1); }
+  .btn {
+    border: 1px solid var(--line); background: #fff; color: var(--text);
+    padding: 8px 14px; border-radius: 9px; font-size: 13px;
+  }
+  .btn:hover { background: #f7f8fa; }
+  .btn-primary { background: #14161b; border-color: #14161b; color: #fff; }
+  .btn-primary:hover { background: #24272f; }
+  .btn-danger { color: var(--red); }
+  .btn-block { width: 100%; padding: 10px; margin-top: 22px; }
+  .err { color: var(--red); font-size: 12px; margin-top: 12px; min-height: 16px; }
+
+  /* ---------- 主界面 ---------- */
+  #app { display: none; max-width: 1180px; margin: 0 auto; padding: 26px 22px 60px; }
+  header.top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+  .top .left { display: flex; align-items: center; gap: 12px; }
+  .top h2 { margin: 0; font-size: 19px; font-weight: 600; }
+  .top .sub { font-size: 12px; color: var(--muted); margin-top: 3px; }
+
+  .stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 18px; }
+  .stat {
+    background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px;
+  }
+  .stat .k { font-size: 12px; color: var(--muted); }
+  .stat .v { font-size: 22px; font-weight: 600; margin-top: 6px; letter-spacing: -.02em; }
+  .stat .v.green { color: var(--green); }
+
+  .panel {
+    background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+    margin-bottom: 16px; overflow: hidden;
+  }
+  .panel-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 18px; border-bottom: 1px solid var(--line);
+  }
+  .panel-head h3 { margin: 0; font-size: 14px; font-weight: 600; }
+  .panel-head .hint { font-size: 12px; color: var(--muted); }
+  .panel-body { padding: 16px 18px; }
+
+  table { width: 100%; border-collapse: collapse; }
+  th {
+    text-align: left; font-size: 11px; font-weight: 500; color: var(--muted);
+    text-transform: uppercase; letter-spacing: .04em; padding: 9px 18px; background: #fafbfc;
+    border-bottom: 1px solid var(--line);
+  }
+  td { padding: 11px 18px; border-bottom: 1px solid #f1f2f5; font-size: 13px; vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #fcfcfd; }
+  .key { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; letter-spacing: .02em; }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: var(--muted); }
+  .tag {
+    display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 500;
+  }
+  .tag.active { background: #e7f6ed; color: var(--green); }
+  .tag.unused { background: #eef0f4; color: var(--muted); }
+  .tag.revoked { background: #fdeceb; color: var(--red); }
+  .tag.suspended { background: #fff4e0; color: var(--amber); }
+  .row-actions { display: flex; gap: 6px; }
+  .row-actions .btn { padding: 4px 9px; font-size: 12px; }
+
+  .toolbar { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+  .field { display: flex; flex-direction: column; gap: 5px; }
+  .field label { margin: 0; }
+  .tabs { display: flex; gap: 4px; margin-bottom: 16px; }
+  .tab {
+    padding: 7px 14px; border-radius: 9px; font-size: 13px; color: var(--muted);
+    border: 1px solid transparent; background: transparent;
+  }
+  .tab.on { background: #fff; border-color: var(--line); color: var(--text); font-weight: 500; }
+
+  .empty { padding: 34px; text-align: center; color: var(--muted); font-size: 13px; }
+  .toast {
+    position: fixed; bottom: 26px; left: 50%; transform: translateX(-50%) translateY(80px);
+    background: #14161b; color: #fff; padding: 10px 18px; border-radius: 10px; font-size: 13px;
+    opacity: 0; transition: .25s; z-index: 99; pointer-events: none;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast.err { background: var(--red); }
+  .warn-bar {
+    background: #fff8e6; border: 1px solid #ffe9b0; color: #7a5300;
+    padding: 10px 14px; border-radius: 10px; font-size: 12.5px; margin-bottom: 16px;
+  }
+  @media (max-width: 900px) { .stats { grid-template-columns: repeat(2, 1fr); } }
+</style>
+</head>
+<body>
+
+<div id="login">
+  <form class="login-card" id="loginForm">
+    <div class="brand">
+      <div class="logo">V</div>
+      <div>
+        <h1>Vmbra 授权中心</h1>
+        <p>IP 白名单 · 授权码管理</p>
+      </div>
+    </div>
+    <label>管理员账号</label>
+    <input type="text" id="username" value="admin" autocomplete="username" />
+    <label>密码</label>
+    <input type="password" id="password" autocomplete="current-password" />
+    <button class="btn btn-primary btn-block" type="submit">登录</button>
+    <div class="err" id="loginErr"></div>
+  </form>
+</div>
+
+<div id="app">
+  <header class="top">
+    <div class="left">
+      <div class="logo">V</div>
+      <div>
+        <h2>授权中心</h2>
+        <div class="sub" id="adminLine">已登录</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn" onclick="loadAll()">刷新</button>
+      <button class="btn" onclick="logout()">退出</button>
+    </div>
+  </header>
+
+  <div class="warn-bar" id="emptyWarn" style="display:none">
+    IP 白名单为空 — 标记为「IP 白名单」策略的授权码将无法激活；个人客户（免 IP 限制）不受影响。
+    如需给企业/代理商开通，请在「IP 白名单」中添加其公网 IP 或网段（如 1.2.3.0/24）。
+  </div>
+
+  <div class="stats" id="stats"></div>
+
+  <div class="tabs">
+    <button class="tab on" data-tab="licenses">授权码</button>
+    <button class="tab" data-tab="ips">IP 白名单</button>
+    <button class="tab" data-tab="vps">出口节点</button>
+    <button class="tab" data-tab="events">审计日志</button>
+  </div>
+
+  <section id="tab-licenses">
+    <div class="panel">
+      <div class="panel-head">
+        <h3>批量生成授权码</h3>
+        <span class="hint">首次激活时自动绑定设备指纹</span>
+      </div>
+      <div class="panel-body">
+        <div class="toolbar">
+          <div class="field" style="width:100px"><label>数量</label><input type="number" id="genCount" value="1" min="1" max="200" /></div>
+          <div class="field" style="width:150px">
+            <label>套餐</label>
+            <select id="genPlan"><option value="lifetime">永久（168）</option><option value="yearly">年付</option><option value="agent">代理商</option></select>
+          </div>
+          <div class="field" style="width:170px">
+            <label>IP 策略</label>
+            <select id="genIp"><option value="exempt">免 IP 限制（个人）</option><option value="white">IP 白名单（企业）</option></select>
+          </div>
+          <div class="field" style="flex:1;min-width:180px"><label>备注（客户/渠道）</label><input type="text" id="genNote" placeholder="如：微信 nick-a / 淘宝订单 123" /></div>
+          <button class="btn btn-primary" onclick="createLicenses()">生成</button>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h3>授权码列表</h3><span class="hint" id="licCount"></span></div>
+      <div id="licTable"></div>
+    </div>
+  </section>
+
+  <section id="tab-ips" style="display:none">
+    <div class="panel">
+      <div class="panel-head"><h3>添加 IP / 网段</h3><span class="hint">支持 1.2.3.4 与 1.2.3.0/24</span></div>
+      <div class="panel-body">
+        <div class="toolbar">
+          <div class="field" style="width:220px"><label>IP 或 CIDR</label><input type="text" id="ipValue" placeholder="203.0.113.10" /></div>
+          <div class="field" style="flex:1;min-width:180px"><label>备注</label><input type="text" id="ipNote" placeholder="客户名 / 到期日" /></div>
+          <button class="btn btn-primary" onclick="addIp()">加入白名单</button>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h3>白名单</h3></div>
+      <div id="ipTable"></div>
+    </div>
+  </section>
+
+  <section id="tab-vps" style="display:none">
+    <div class="panel">
+      <div class="panel-head"><h3>添加出口节点</h3><span class="hint">仅授权激活成功后下发给客户端</span></div>
+      <div class="panel-body">
+        <div class="toolbar">
+          <div class="field" style="width:160px"><label>名称</label><input type="text" id="vpsName" placeholder="香港-01" /></div>
+          <div class="field" style="width:200px"><label>Host</label><input type="text" id="vpsHost" placeholder="hk01.example.com" /></div>
+          <div class="field" style="width:110px"><label>端口</label><input type="number" id="vpsPort" value="443" /></div>
+          <button class="btn btn-primary" onclick="addVps()">添加</button>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h3>节点列表</h3></div>
+      <div id="vpsTable"></div>
+    </div>
+  </section>
+
+  <section id="tab-events" style="display:none">
+    <div class="panel">
+      <div class="panel-head"><h3>审计日志</h3><span class="hint">最近 300 条</span></div>
+      <div id="eventTable"></div>
+    </div>
+  </section>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let token = localStorage.getItem('vmbra_admin_token') || '';
+
+function toast(msg, isErr) {
+  const el = $('toast');
+  el.textContent = msg;
+  el.className = 'toast show' + (isErr ? ' err' : '');
+  clearTimeout(el._t);
+  el._t = setTimeout(() => { el.className = 'toast'; }, 2400);
+}
+
+async function api(path, options = {}) {
+  const res = await fetch(path, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: 'Bearer ' + token } : {}),
+      ...(options.headers || {}),
+    },
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    if (res.status === 401 && path !== '/api/admin/login') { logout(); }
+    throw new Error((data.error && data.error.message) || '请求失败');
+  }
+  return data;
+}
+
+/* ---------- 登录 ---------- */
+$('loginForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  $('loginErr').textContent = '';
+  try {
+    const data = await api('/api/admin/login', {
+      method: 'POST',
+      body: JSON.stringify({ username: $('username').value, password: $('password').value }),
+    });
+    token = data.token;
+    localStorage.setItem('vmbra_admin_token', token);
+    enterApp(data.username, data.serverIp);
+  } catch (err) {
+    $('loginErr').textContent = err.message;
+  }
+});
+
+function logout() {
+  token = '';
+  localStorage.removeItem('vmbra_admin_token');
+  $('app').style.display = 'none';
+  $('login').style.display = 'grid';
+}
+
+function enterApp(name, ip) {
+  $('login').style.display = 'none';
+  $('app').style.display = 'block';
+  $('adminLine').textContent = `管理员 ${name} · 本机出口 IP ${ip}`;
+  loadAll();
+}
+
+/* ---------- 渲染 ---------- */
+const STATUS = { active: '使用中', unused: '未激活', revoked: '已停用', suspended: '已暂停' };
+
+function renderStats(s) {
+  const items = [
+    ['授权码总数', s.total, ''],
+    ['使用中', s.active, 'green'],
+    ['未激活', s.unused, ''],
+    ['24h 在线', s.online24h, 'green'],
+    ['白名单 IP', s.ips, ''],
+  ];
+  $('stats').innerHTML = items.map(([k, v, cls]) =>
+    `<div class="stat"><div class="k">${k}</div><div class="v ${cls}">${v}</div></div>`).join('');
+  $('emptyWarn').style.display = s.ips === 0 ? 'block' : 'none';
+}
+
+function renderLicenses(items) {
+  if (!items.length) { $('licTable').innerHTML = '<div class="empty">还没有授权码，先在上方批量生成</div>'; $('licCount').textContent = ''; return; }
+  $('licCount').textContent = `共 ${items.length} 个`;
+  const rows = items.map((l) => `
+    <tr>
+      <td class="key">${l.key}</td>
+      <td><span class="tag ${l.status}">${STATUS[l.status] || l.status}</span></td>
+      <td>${l.plan === 'lifetime' ? '永久' : l.plan === 'yearly' ? '年付' : l.plan}</td>
+      <td>
+        <span class="tag ${l.ipExempt ? 'suspended' : 'active'}" style="cursor:pointer"
+              title="点击切换：个人客户免 IP 限制，企业/代理走 IP 白名单"
+              onclick="patchLicense('${l.id}',{ipExempt:${!l.ipExempt}})">${l.ipExempt ? '免 IP 限制' : 'IP 白名单'}</span>
+      </td>
+      <td class="mono">${l.lastIp || '—'}</td>
+      <td class="mono">${l.lastSeenAt ? fmt(l.lastSeenAt) : '—'}</td>
+      <td class="mono">${l.note || '—'}</td>
+      <td>
+        <div class="row-actions">
+          ${l.status === 'revoked'
+            ? `<button class="btn" onclick="patchLicense('${l.id}',{status:'active'})">恢复</button>`
+            : `<button class="btn btn-danger" onclick="patchLicense('${l.id}',{status:'revoked'})">停用</button>`}
+          <button class="btn" onclick="patchLicense('${l.id}',{resetBinding:true})" title="解除设备绑定，允许客户换机后重新激活">解绑</button>
+          <button class="btn" onclick="copyKey('${l.key}')">复制</button>
+          <button class="btn btn-danger" onclick="deleteLicense('${l.id}','${l.key}')">删除</button>
+        </div>
+      </td>
+    </tr>`).join('');
+  $('licTable').innerHTML = `<table><thead><tr>
+    <th>授权码</th><th>状态</th><th>套餐</th><th>IP 策略</th><th>最近 IP</th><th>最近在线</th><th>备注</th><th>操作</th>
+  </tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+function renderIps(items) {
+  if (!items.length) { $('ipTable').innerHTML = '<div class="empty">白名单为空，所有客户端都会被拒绝</div>'; return; }
+  const rows = items.map((r) => `
+    <tr>
+      <td class="mono" style="color:var(--text)">${r.value}</td>
+      <td>${r.note || '—'}</td>
+      <td><span class="tag ${r.enabled !== false ? 'active' : 'unused'}">${r.enabled !== false ? '生效中' : '已停用'}</span></td>
+      <td class="mono">${fmt(r.createdAt)}</td>
+      <td><div class="row-actions">
+        <button class="btn" onclick="patchIp('${r.id}',{enabled:${r.enabled !== false ? 'false' : 'true'}})">${r.enabled !== false ? '停用' : '启用'}</button>
+        <button class="btn btn-danger" onclick="deleteIp('${r.id}')">删除</button>
+      </div></td>
+    </tr>`).join('');
+  $('ipTable').innerHTML = `<table><thead><tr><th>IP / 网段</th><th>备注</th><th>状态</th><th>添加时间</th><th>操作</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+function renderVps(items) {
+  if (!items || !items.length) { $('vpsTable').innerHTML = '<div class="empty">还没有出口节点，客户端激活后将拿不到可用 VPS</div>'; return; }
+  const rows = items.map((v) => `
+    <tr>
+      <td>${v.name}</td>
+      <td class="mono" style="color:var(--text)">${v.host}:${v.port}</td>
+      <td>${v.region || '—'}</td>
+      <td><span class="tag ${v.enabled !== false ? 'active' : 'unused'}">${v.enabled !== false ? '启用' : '停用'}</span></td>
+      <td><button class="btn btn-danger" onclick="deleteVps('${v.id}')">删除</button></td>
+    </tr>`).join('');
+  $('vpsTable').innerHTML = `<table><thead><tr><th>名称</th><th>地址</th><th>区域</th><th>状态</th><th>操作</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+function renderEvents(items) {
+  if (!items.length) { $('eventTable').innerHTML = '<div class="empty">暂无日志</div>'; return; }
+  const rows = items.map((e) => `
+    <tr>
+      <td class="mono" style="white-space:nowrap">${fmt(e.at)}</td>
+      <td><span class="mono" style="color:var(--text)">${e.type}</span></td>
+      <td>${e.message}</td>
+    </tr>`).join('');
+  $('eventTable').innerHTML = `<table><thead><tr><th>时间</th><th>类型</th><th>内容</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+function fmt(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+/* ---------- 数据加载 ---------- */
+async function loadAll() {
+  try {
+    const [ov, lic, ips, ev] = await Promise.all([
+      api('/api/admin/overview'),
+      api('/api/admin/licenses'),
+      api('/api/admin/ips'),
+      api('/api/admin/events'),
+    ]);
+    renderStats(ov.stats);
+    renderLicenses(lic.items);
+    renderIps(ips.items);
+    renderVps(ov.settings.vpsEndpoints);
+    renderEvents(ev.items);
+  } catch (err) {
+    toast(err.message, true);
+  }
+}
+
+/* ---------- 操作 ---------- */
+async function createLicenses() {
+  try {
+    const data = await api('/api/admin/licenses', {
+      method: 'POST',
+      body: JSON.stringify({
+        count: Number($('genCount').value) || 1,
+        plan: $('genPlan').value,
+        note: $('genNote').value,
+        ipExempt: $('genIp').value === 'exempt',
+      }),
+    });
+    const keys = data.items.map((i) => i.key).join('\n');
+    await navigator.clipboard.writeText(keys).catch(() => {});
+    toast(`已生成 ${data.items.length} 个授权码，已复制到剪贴板`);
+    loadAll();
+  } catch (err) { toast(err.message, true); }
+}
+
+async function patchLicense(id, body) {
+  try {
+    await api('/api/admin/licenses/' + id, { method: 'PATCH', body: JSON.stringify(body) });
+    toast('已更新');
+    loadAll();
+  } catch (err) { toast(err.message, true); }
+}
+
+async function deleteLicense(id, key) {
+  if (!confirm(`删除授权码 ${key}？删除后客户将无法再激活。`)) return;
+  try {
+    await api('/api/admin/licenses/' + id, { method: 'DELETE' });
+    toast('已删除');
+    loadAll();
+  } catch (err) { toast(err.message, true); }
+}
+
+function copyKey(key) {
+  navigator.clipboard.writeText(key).then(() => toast('已复制 ' + key), () => toast('复制失败', true));
+}
+
+async function addIp() {
+  try {
+    await api('/api/admin/ips', {
+      method: 'POST',
+      body: JSON.stringify({ value: $('ipValue').value, note: $('ipNote').value }),
+    });
+    $('ipValue').value = ''; $('ipNote').value = '';
+    toast('已加入白名单');
+    loadAll();
+  } catch (err) { toast(err.message, true); }
+}
+
+async function patchIp(id, body) {
+  try {
+    await api('/api/admin/ips/' + id, { method: 'PATCH', body: JSON.stringify(body) });
+    loadAll();
+  } catch (err) { toast(err.message, true); }
+}
+
+async function deleteIp(id) {
+  if (!confirm('移除该 IP？客户将立即无法激活/续期。')) return;
+  try {
+    await api('/api/admin/ips/' + id, { method: 'DELETE' });
+    toast('已移除');
+    loadAll();
+  } catch (err) { toast(err.message, true); }
+}
+
+async function addVps() {
+  try {
+    await api('/api/admin/vps', {
+      method: 'POST',
+      body: JSON.stringify({ name: $('vpsName').value, host: $('vpsHost').value, port: Number($('vpsPort').value) || 443 }),
+    });
+    $('vpsName').value = ''; $('vpsHost').value = '';
+    toast('已添加节点');
+    loadAll();
+  } catch (err) { toast(err.message, true); }
+}
+
+async function deleteVps(id) {
+  if (!confirm('删除该节点？')) return;
+  try {
+    await api('/api/admin/vps/' + id, { method: 'DELETE' });
+    toast('已删除');
+    loadAll();
+  } catch (err) { toast(err.message, true); }
+}
+
+/* ---------- Tab ---------- */
+document.querySelectorAll('.tab').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach((b) => b.classList.remove('on'));
+    btn.classList.add('on');
+    ['licenses', 'ips', 'vps', 'events'].forEach((t) => {
+      $('tab-' + t).style.display = t === btn.dataset.tab ? 'block' : 'none';
+    });
+  });
+});
+
+/* ---------- 启动 ---------- */
+if (token) {
+  api('/api/admin/overview')
+    .then(() => enterApp('admin', '—'))
+    .catch(() => { logout(); });
+} else {
+  $('login').style.display = 'grid';
+}
+</script>
+</body>
+</html>
