@@ -1,8 +1,8 @@
 # Vmbra 客户端功能手册
 
-> 本手册对应客户端主程序 `anywhered`（仓库内仍沿用 `anywhere` 代号）。架构说明见 [`ARCHITECTURE.md`](ARCHITECTURE.md)。
+> 本手册对应客户端主程序 `vmbrad`。架构说明见 [`ARCHITECTURE.md`](ARCHITECTURE.md)。
 
-本地隔离工作站：在本机提供一个「可运行不可信内容」的隔离环境，配一个本地管理服务（`anywhered`）和一个浏览器控制台。
+本地隔离工作站：在本机提供一个「可运行不可信内容」的隔离环境，配一个本地管理服务（`vmbrad`）和一个浏览器控制台。
 
 - **隔离内核**：macOS `sandbox-exec` 策略 + `ulimit` 资源限制 + PTY 会话 + 工作区私有文件系统
 - **管理面**：Go 单二进制守护进程，仅监听 `127.0.0.1`，接口用访问令牌鉴权
@@ -13,12 +13,12 @@
 │ 工作站 · 文件 · 应用 · 网络 · 环境 · 维护与恢复 · 任务 · 诊断 · 设置 │
 └───────────────┬──────────────────────────────────────────────────────┘
                 │ HTTP + WebSocket（令牌鉴权 / 回环 + Origin 校验）
-┌───────────────▼───────────────  anywhered  ──────────────────────────┐
+┌───────────────▼───────────────  vmbrad  ──────────────────────────┐
 │ api       路由、鉴权、静态资源、终端/任务/VNC 的 WS 通道              │
 │ service   工作站生命周期、文件、应用、网络、环境、维护、诊断、设置    │
 │ tasks     后台任务队列（实时日志、取消、持久化元信息）                │
 │ sandbox   策略沙箱执行 · PTY 会话 · 工作区文件系统 · 快照归档         │
-│ store     状态持久化（原子写入 ~/.anywhere/state.json）               │
+│ store     状态持久化（原子写入 ~/.vmbra/state.json）               │
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -27,13 +27,13 @@
 不想每次都敲 curl 或翻浏览器标签页时，用桌面外壳：
 
 ```bash
-make app                 # 产出 dist/AnyWhere.app（内置 anywhered）
-open dist/AnyWhere.app
+make app                 # 产出 dist/Vmbra.app（内置 vmbrad）
+open dist/Vmbra.app
 ```
 
 它是一个 WKWebView 窗口，直接内嵌控制台，并把常用动作放到顶部工具条与菜单栏：
 
-- **自动拉起管理服务**：启动时探测 `127.0.0.1:7788`，没响应就用包内的 `anywhered` 起一个；
+- **自动拉起管理服务**：启动时探测 `127.0.0.1:7788`，没响应就用包内的 `vmbrad` 起一个；
 - **自动启动工作站**：连上后若工作站处于 `stopped`，直接调 `/api/workstation/start`；
 - **状态灯**：每 3 秒轮询 `/api/status`，显示运行中/已停止/异常与隔离引擎是否生效；
 - **一套界面**：窗口里就是控制台本体，保留原有侧边栏、卡片与深色样式，不再叠加第二套导航；
@@ -47,17 +47,17 @@ open dist/AnyWhere.app
 > `/api/browser/open`，由受控 Chrome（独立 profile、固定语言/时区、可选 VPS 出口）载入；
 > 该 profile 未启动时先拉起，已启动时在同一个实例里新开窗口。
 
-它只是管理服务的客户端，不自己实现隔离逻辑；换端口或指向别的实例用 `ANYWHERE_BASE`、换内置二进制用 `ANYWHERE_BIN`。
-放到 `/Applications` 即可日常使用（`cp -R dist/AnyWhere.app /Applications/`）。
+它只是管理服务的客户端，不自己实现隔离逻辑；换端口或指向别的实例用 `VMBRA_BASE`、换内置二进制用 `VMBRA_BIN`。
+放到 `/Applications` 即可日常使用（`cp -R dist/Vmbra.app /Applications/`）。
 
 ## 快速开始
 
 ```bash
 # 依赖：macOS + Go 1.23+（不需要 Docker / 虚拟机）
-make build          # 产出 bin/anywhered
+make build          # 产出 bin/vmbrad
 make run            # 前台启动，日志会打印带令牌的控制台地址
 # 或
-go run ./cmd/anywhered
+go run ./cmd/vmbrad
 ```
 
 启动后终端会输出：
@@ -66,14 +66,14 @@ go run ./cmd/anywhered
 控制台：http://127.0.0.1:7788/?token=<你的令牌>
 ```
 
-直接打开该地址即可。令牌保存在 `~/.anywhere/token`（权限 0600），接口需要
-`X-Anywhere-Token` 头、`?token=` 查询参数或同名 Cookie。
+直接打开该地址即可。令牌保存在 `~/.vmbra/token`（权限 0600），接口需要
+`X-Vmbra-Token` 头、`?token=` 查询参数或同名 Cookie。
 
 常用参数：
 
 ```bash
-anywhered --port 7999 --data-dir /tmp/aw      # 自定义端口与数据目录
-anywhered --version
+vmbrad --port 7999 --data-dir /tmp/aw      # 自定义端口与数据目录
+vmbrad --version
 ```
 
 ## 隔离模型
@@ -81,7 +81,7 @@ anywhered --version
 | 维度 | 策略 | 说明 |
 | --- | --- | --- |
 | 文件读 | 默认放行系统运行时，显式拒绝隐私目录 | 文稿/桌面/下载/图片/`.ssh`/`.aws`/`Keychains`/`Cookies` 等 |
-| 文件写 | 仅限 `~/.anywhere/workstation` 与系统临时区 | 其余路径写入会被内核直接拒绝 |
+| 文件写 | 仅限 `~/.vmbra/workstation` 与系统临时区 | 其余路径写入会被内核直接拒绝 |
 | 网络 | 默认 `deny network*` | 在「网络 → 工作站出网」显式开启后才放行；关闭时**回环也一并被拒**（工作站内无法监听/访问 `127.0.0.1`） |
 | 进程 | `allow process-exec` / `process-fork`，信号仅限自身 | 超时会回收整个进程组，避免孙进程逃逸 |
 | 资源 | `ulimit -t` CPU 秒、`-f` 单文件大小、`-n` 文件句柄 | macOS 不支持 `RLIMIT_AS`，内存上限需由虚拟机后端提供 |
@@ -100,7 +100,7 @@ anywhered --version
 ## 系统层：与 VPS 一致的出入口
 
 工作站启用后，终端、脚本、任务、诊断共用同一套系统环境，由管理服务统一装配并落到
-`~/.anywhere/workstation/home/.anywhere.env`（`.zshrc` 会自动 source，改设置后即时重写）：
+`~/.vmbra/workstation/home/.vmbra.env`（`.zshrc` 会自动 source，改设置后即时重写）：
 
 | 维度 | 默认值 | 说明 |
 | --- | --- | --- |
@@ -108,12 +108,12 @@ anywhered --version
 | 编码 | `UTF-8`（强制，不接受其他值） | 终端、脚本、文件读写统一 UTF-8 |
 | 时区 | 跟随 VPS 地区 `America/Los_Angeles`（可关闭） | 导出 `TZ`，`date` 直接显示该地区时间，与宿主 Mac 无关 |
 | 终端 | `TERM=xterm-256color`、`COLORTERM=truecolor` | 与 VPS SSH 会话一致的色彩与宽度行为 |
-| DNS | 宿主机解析器 + 本地转发器 `127.0.0.1:1053` | 转发器把查询送往配置的上游；`ANYWHERE_DNS_SERVER` 可用于 `dig @…` 等工具 |
+| DNS | 宿主机解析器 + 本地转发器 `127.0.0.1:1053` | 转发器把查询送往配置的上游；`VMBRA_DNS_SERVER` 可用于 `dig @…` 等工具 |
 | 代理 | 继承宿主机环境变量 / 手动 / 关闭 | 仅在「工作站出网」开启时注入，`HTTP(S)_PROXY/ALL_PROXY/NO_PROXY` 全量导出 |
 
 「环境 → 系统语言文字」里的**跟随 VPS 地区**开关决定语言与时区来源：开启后取自 VPS 配置
 （`VPS.Lang` / `VPS.TimeZone`，默认 `en-US` / `America/Los_Angeles`），与宿主 Mac 完全无关；
-VPS 换区时环境会自动同步并重写 `.anywhere.env`，已打开的旧终端需要新开会话才会生效。
+VPS 换区时环境会自动同步并重写 `.vmbra.env`，已打开的旧终端需要新开会话才会生效。
 
 对应接口：
 
@@ -158,13 +158,13 @@ POST  /api/apps/run               # {"path":"scripts/hello.sh","args":["--x"]} �
 profile 里。所以即使流量走了 VPS，浏览器时区与语言仍是本机设置，指纹和出口地区对不上。
 「应用 → 受控浏览器」用独立 profile 解决这个问题：
 
-- 独立配置目录（`~/.anywhere/browser/<语言>`），不影响日常 Chrome，两个实例可以并存；
+- 独立配置目录（`~/.vmbra/browser/<语言>`），不影响日常 Chrome，两个实例可以并存；
 - 直接执行 Chrome 二进制并注入 `TZ=<时区>`，JS 的 `Intl` 与页面时间同时生效；
 - 启动前写入 `intl.accept_languages` / `intl.app_locale`，使 `navigator.language`
   与 `Accept-Language` 和配置一致（只加 `--lang` 不会改变这两个值）；
 - 出口可强制 `--proxy-server=socks5://127.0.0.1:1080`，HTTP 与 DNS 都从 VPS 离开；
 - 「验证语言/时区」用一次性 headless profile 读取实际值，确认真正生效而不是只写了配置；
-- 启动逻辑会同时写入 `~/.anywhere/bin/chrome-us`，桌面图标（如 `Chrome US.app`）直接调用它，
+- 启动逻辑会同时写入 `~/.vmbra/bin/chrome-us`，桌面图标（如 `Chrome US.app`）直接调用它，
   不会与控制台配置漂移。脚本在隧道端口可连通时自动加 `--proxy-server`，与页面行为一致。
 
 默认 `en-US` + `America/Los_Angeles`，可在页面修改；要换区时同时调整 VPS 隧道所在地，
@@ -189,7 +189,7 @@ profile 里。所以即使流量走了 VPS，浏览器时区与语言仍是本�
 链路自检示例：
 
 ```bash
-curl -X POST -H "X-Anywhere-Token: $TOKEN" \
+curl -X POST -H "X-Vmbra-Token: $TOKEN" \
   http://127.0.0.1:7788/api/network/forwards/<id>/test
 # {"addr":"127.0.0.1:18080","connections":3,"guestOk":true,"guestLatencyMs":0,"listening":true}
 ```
@@ -203,7 +203,7 @@ curl -X POST -H "X-Anywhere-Token: $TOKEN" \
   `ALL_PROXY=socks5h://127.0.0.1:1080`，对外请求从 VPS 的公网 IP 离开；
 - **入站**：`ssh -R` 把 VPS 上的端口回落到工作站本地端口（例如 `VPS:8080 → 127.0.0.1:8080`），
   访问 VPS 端口即到达工作站内的服务；
-- **认证**：控制台生成专用 ed25519 密钥，私钥只留在 `~/.anywhere/vps/`，页面给出一次性安装命令，
+- **认证**：控制台生成专用 ed25519 密钥，私钥只留在 `~/.vmbra/vps/`，页面给出一次性安装命令，
   不保存也不传输 VPS 密码；
 - **自检**：`POST /api/vps/egress` 同时探测宿主与隧道出口 IP，确认隧道真正生效；
   配置后诊断页会多一项「VPS 出入口」检查。
@@ -327,9 +327,9 @@ curl -X POST -H "X-Anywhere-Token: $TOKEN" \
 ## 安全模型
 
 - 只监听回环地址，并校验 `Host` 必须是 `127.0.0.1 / localhost / ::1`，防止 DNS rebinding；
-- 接口要求令牌（`X-Anywhere-Token` 头、`?token=` 或 Cookie），WebSocket 额外校验 `Origin`；
+- 接口要求令牌（`X-Vmbra-Token` 头、`?token=` 或 Cookie），WebSocket 额外校验 `Origin`；
 - 令牌文件权限 0600，可在「设置 → 轮换令牌」一键失效全部旧会话；
-- 信任边界是**当前系统用户**：能读 `~/.anywhere/token` 的本机进程/个人可以控制本服务，
+- 信任边界是**当前系统用户**：能读 `~/.vmbra/token` 的本机进程/个人可以控制本服务，
   这与「以当前用户身份运行本地工具」的前提一致。若需要多用户隔离，请勿把服务暴露到局域网；
 - 「操控 Mac」两道开关默认只开查看、不开命令执行，执行前有二次确认，审计不落命令原文。
 
@@ -337,14 +337,14 @@ curl -X POST -H "X-Anywhere-Token: $TOKEN" \
 
 | 环境变量 | 默认值 | 说明 |
 | --- | --- | --- |
-| `ANYWHERE_DATA_DIR` | `~/.anywhere` | 数据目录（工作站、快照、日志、状态、令牌） |
-| `ANYWHERE_LISTEN` | `127.0.0.1:7788` | 监听地址，仅供本机访问 |
-| `ANYWHERE_PORT` | — | 只覆盖端口 |
+| `VMBRA_DATA_DIR` | `~/.vmbra` | 数据目录（工作站、快照、日志、状态、令牌） |
+| `VMBRA_LISTEN` | `127.0.0.1:7788` | 监听地址，仅供本机访问 |
+| `VMBRA_PORT` | — | 只覆盖端口 |
 
 数据目录结构：
 
 ```
-~/.anywhere/
+~/.vmbra/
 ├── state.json            # 工作站/设置/网络/环境/快照/审计
 ├── token                 # 访问令牌（0600）
 ├── workstation/
@@ -364,7 +364,7 @@ curl -X POST -H "X-Anywhere-Token: $TOKEN" \
 ```bash
 make test        # go test ./...（含沙箱逃逸测试）
 make smoke       # 起临时实例，跑一遍接口冒烟
-make build       # 编译到 bin/anywhered
+make build       # 编译到 bin/vmbrad
 ```
 
 前端没有构建步骤：`internal/webui/web/` 下的 HTML/CSS/JS 通过 `go:embed`
@@ -375,7 +375,7 @@ make build       # 编译到 bin/anywhered
 - 本地进程隔离不是内核级虚拟机：与宿主共享内核、共享网络栈，隔离强度低于 VM；
 - 端口转发仅支持 TCP；本地规则监听在回环地址，需要公网入站时走「VPS 出入口」的远程转发；
 - 关闭网络后，工作站内进程无法出网，**且无法监听或连接 `127.0.0.1`**（`deny network*` 覆盖回环），
-  因此工作站内跑不了本地服务，`ANYWHERE_DNS_SERVER`（`127.0.0.1:1053`）在该状态下也不可达；
+  因此工作站内跑不了本地服务，`VMBRA_DNS_SERVER`（`127.0.0.1:1053`）在该状态下也不可达；
   诊断页的「隔离边界 · 访问宿主回环 / 工作站内回环监听」两项会如实标为告警；
 - 不提供 root 会话与系统级 `dpkg` 安装，`.deb` 只解析并解包到工作区，不执行维护脚本；
 - 图形桌面依赖外接 VNC 服务；未接入时「启动桌面」会给出启用指引；

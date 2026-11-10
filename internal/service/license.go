@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"anywhere/internal/license"
-	"anywhere/internal/store"
+	"github.com/4869-001/vmbra/internal/license"
+	"github.com/4869-001/vmbra/internal/store"
 )
 
 // 授权中心地址可通过环境变量覆盖，打包时默认指向线上。

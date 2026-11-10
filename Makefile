@@ -1,8 +1,8 @@
-BIN := bin/anywhered
-PKG := ./cmd/anywhered
+BIN := bin/vmbrad
+PKG := ./cmd/vmbrad
 PORT ?= 7788
 
-.PHONY: build link app run test vet smoke fmt clean
+.PHONY: build link icon app run test vet smoke fmt clean
 
 build:
 	@mkdir -p bin
@@ -15,7 +15,11 @@ link: build
 	@./bin/vmbra-link --host "$(HOST)" --port "$(or $(PORT),22)" --user "$(or $(USER),root)" \
 		--password "$(PASSWORD)" --name "$(NAME)" --tools "$(TOOLS)" $(if $(VM),--vm)
 
-app: build
+# 品牌图标：assets/brand/*.svg → desktop/vmbra.icns
+icon:
+	@./scripts/make-icon.sh
+
+app: build icon
 	@./desktop/build.sh
 
 run:

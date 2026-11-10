@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"anywhere/internal/config"
-	"anywhere/internal/store"
+	"github.com/4869-001/vmbra/internal/config"
+	"github.com/4869-001/vmbra/internal/store"
 )
 
 var envKeyPattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]{0,63}$`)

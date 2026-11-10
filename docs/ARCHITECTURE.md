@@ -15,7 +15,7 @@
 ## 2. 包依赖
 
 ```
-cmd/anywhered
+cmd/vmbrad
    └── config ─ store ─ sandbox ─ tasks ─ webui ─ api ─ service
                                                  │
    service ──┬── sandbox   (策略/PTY/文件/快照)
@@ -40,7 +40,7 @@ webui ── embed.FS（静态资源，无运行时依赖）
 ```
 HTTP 请求
   → guard：Host 白名单（防 DNS rebinding）
-           → 令牌校验（X-Anywhere-Token / ?token= / Cookie）
+           → 令牌校验（X-Vmbra-Token / ?token= / Cookie）
            → WS 追加 Origin 校验
   → mux 路由（GET/POST/PATCH/DELETE，Go 1.22 pattern）
   → handler：decode + 调 service
@@ -100,7 +100,7 @@ Manager.Start(kind,title,fn) → Item
   记录：store.TaskRecord（id/kind/title/status/时间/日志文件）
 ```
 
-典型来源：`.deb` 安装、运行脚本、一键配置环境、导出工作区、诊断包。日志文件落在 `~/.anywhere/logs/`，控制台通过 WS 实时跟随，重连后先回放快照。
+典型来源：`.deb` 安装、运行脚本、一键配置环境、导出工作区、诊断包。日志文件落在 `~/.vmbra/logs/`，控制台通过 WS 实时跟随，重连后先回放快照。
 
 ## 7. 授权链路
 
@@ -147,12 +147,12 @@ Manager.Start(kind,title,fn) → Item
 ## 9. 数据模型与目录
 
 ```
-~/.anywhere/
+~/.vmbra/
 ├── state.json        # Workstation[] / Settings / Network / Env / DNS / Locale / VPS / Browser / License / Snapshots / Tasks / 审计
 ├── token             # 访问令牌 0600
 ├── workstation/
 │   ├── workspace/    # 唯一可写区域
-│   ├── home/         # 沙箱家目录（.anywhere.env 由服务端重写）
+│   ├── home/         # 沙箱家目录（.vmbra.env 由服务端重写）
 │   ├── tmp/
 │   └── .policy.*.sbpl
 ├── snapshots/
@@ -167,10 +167,10 @@ Manager.Start(kind,title,fn) → Item
 ## 10. 构建与分发
 
 ```
-make build ──▶ bin/anywhered（-trimpath -ldflags "-s -w"）
+make build ──▶ bin/vmbrad（-trimpath -ldflags "-s -w"）
 make app   ──▶ swiftc 编 desktop/main.swift
-              → dist/AnyWhere.app/Contents/MacOS/AnyWhere
-              → 复制 bin/anywhered 到 Contents/Resources/
+              → dist/Vmbra.app/Contents/MacOS/Vmbra
+              → 复制 bin/vmbrad 到 Contents/Resources/
               → 复制 scripts/vmbra-setup/ 到 Contents/Resources/scripts/
               → codesign -（本地自用 ad-hoc）
 ```

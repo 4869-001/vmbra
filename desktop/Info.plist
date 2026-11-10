@@ -5,17 +5,23 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>zh_CN</string>
 	<key>CFBundleExecutable</key>
-	<string>AnyWhere</string>
+	<string>Vmbra</string>
 	<key>CFBundleIdentifier</key>
-	<string>local.anywhere.desktop</string>
+	<string>app.vmbra.desktop</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
+	<key>CFBundleIconFile</key>
+	<string>vmbra.icns</string>
 	<key>CFBundleName</key>
-	<string>AnyWhere 工作站</string>
+	<string>Vmbra</string>
 	<key>CFBundleDisplayName</key>
-	<string>AnyWhere 工作站</string>
+	<string>Vmbra</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
+	<key>NSHumanReadableCopyright</key>
+	<string>© 2026 Vmbra</string>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.developer-tools</string>
 	<key>CFBundleShortVersionString</key>
 	<string>0.9.0</string>
 	<key>CFBundleVersion</key>

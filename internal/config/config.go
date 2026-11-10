@@ -15,7 +15,7 @@ const Version = "0.9.0"
 
 // Config 是进程级配置，来源于环境变量与默认值。
 type Config struct {
-	DataDir string // 数据目录，默认 ~/.anywhere
+	DataDir string // 数据目录，默认 ~/.vmbra
 	Listen  string // 监听地址，默认 127.0.0.1:7788
 	Token   string // 访问令牌，首次启动自动生成
 }
@@ -27,16 +27,20 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 	c := &Config{
-		DataDir: filepath.Join(home, ".anywhere"),
+		DataDir: filepath.Join(home, ".vmbra"),
 		Listen:  "127.0.0.1:7788",
 	}
-	if v := os.Getenv("ANYWHERE_DATA_DIR"); v != "" {
+	// 一次性的历史数据迁移：老版本数据目录 ~/.anywhere，改名后搬到 ~/.vmbra。
+	// 只在用户没有显式指定数据目录、且新目录尚未创建时执行，避免覆盖已有数据。
+	if v := firstEnv("VMBRA_DATA_DIR", "ANYWHERE_DATA_DIR"); v != "" {
 		c.DataDir = expandHome(v, home)
+	} else {
+		migrateLegacyDataDir(filepath.Join(home, ".anywhere"), c.DataDir)
 	}
-	if v := os.Getenv("ANYWHERE_LISTEN"); v != "" {
+	if v := firstEnv("VMBRA_LISTEN", "ANYWHERE_LISTEN"); v != "" {
 		c.Listen = v
 	}
-	if v := os.Getenv("ANYWHERE_PORT"); v != "" {
+	if v := firstEnv("VMBRA_PORT", "ANYWHERE_PORT"); v != "" {
 		if p, err := strconv.Atoi(v); err == nil && p > 0 && p < 65536 {
 			c.Listen = "127.0.0.1:" + strconv.Itoa(p)
 		}
@@ -45,6 +49,31 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 	return c, nil
+}
+
+// firstEnv 返回第一个非空的环境变量值，用于兼容旧前缀（ANYWHERE_*）。
+func firstEnv(names ...string) string {
+	for _, n := range names {
+		if v := os.Getenv(n); v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
+// migrateLegacyDataDir 把旧数据目录整体搬到新目录（同卷 rename，原子且瞬时）。
+// 失败时保持旧目录不动，调用方会继续在旧路径下工作，不会丢状态。
+func migrateLegacyDataDir(legacy, target string) {
+	if legacy == target {
+		return
+	}
+	if _, err := os.Stat(legacy); err != nil {
+		return
+	}
+	if _, err := os.Stat(target); err == nil {
+		return
+	}
+	_ = os.Rename(legacy, target)
 }
 
 func expandHome(p, home string) string {

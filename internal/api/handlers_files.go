@@ -9,7 +9,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"anywhere/internal/store"
+	"github.com/4869-001/vmbra/internal/store"
 )
 
 const maxPreview = 2 << 20

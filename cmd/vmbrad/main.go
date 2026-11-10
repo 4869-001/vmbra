@@ -1,4 +1,4 @@
-// Command anywhered 是 AnyWhere WorkStation 的本地管理服务。
+// Command vmbrad 是 Vmbra WorkStation 的本地管理服务。
 package main
 
 import (
@@ -15,30 +15,30 @@ import (
 	"syscall"
 	"time"
 
-	"anywhere/internal/api"
-	"anywhere/internal/config"
-	"anywhere/internal/sandbox"
-	"anywhere/internal/service"
-	"anywhere/internal/store"
-	"anywhere/internal/tasks"
-	"anywhere/internal/webui"
+	"github.com/4869-001/vmbra/internal/api"
+	"github.com/4869-001/vmbra/internal/config"
+	"github.com/4869-001/vmbra/internal/sandbox"
+	"github.com/4869-001/vmbra/internal/service"
+	"github.com/4869-001/vmbra/internal/store"
+	"github.com/4869-001/vmbra/internal/tasks"
+	"github.com/4869-001/vmbra/internal/webui"
 )
 
 func main() {
 	showVersion := flag.Bool("version", false, "打印版本号后退出")
 	port := flag.Int("port", 0, "覆盖监听端口（默认 7788）")
-	dataDir := flag.String("data-dir", "", "覆盖数据目录（默认 ~/.anywhere）")
+	dataDir := flag.String("data-dir", "", "覆盖数据目录（默认 ~/.vmbra）")
 	flag.Parse()
 
 	if *showVersion {
-		fmt.Println("anywhered", config.Version)
+		fmt.Println("vmbrad", config.Version)
 		return
 	}
 	if *port > 0 {
-		_ = os.Setenv("ANYWHERE_PORT", fmt.Sprintf("%d", *port))
+		_ = os.Setenv("VMBRA_PORT", fmt.Sprintf("%d", *port))
 	}
 	if *dataDir != "" {
-		_ = os.Setenv("ANYWHERE_DATA_DIR", *dataDir)
+		_ = os.Setenv("VMBRA_DATA_DIR", *dataDir)
 	}
 
 	cfg, err := config.Load()
@@ -91,6 +91,23 @@ func main() {
 
 	_ = svc.WriteBrowserLauncher()
 
+	// 出口闸门：启动即检一次，之后每 30 秒复核；不通过会自动切断工作站网络。
+	gateCtx, gateCancel := context.WithCancel(context.Background())
+	defer gateCancel()
+	svc.StartEgressLoop(gateCtx)
+	svc.StartProxyRefreshLoop(gateCtx)
+
+	// 上次退出前若在用某个 Clash 节点，这里恢复内核并把环境重新对齐。
+	if core := st.Copy().ProxyCore; core.NodeID != "" {
+		go func() {
+			if _, err := svc.ApplyClashNode(core.NodeID); err != nil {
+				log.Printf("恢复 Clash 出口失败：%v", err)
+				return
+			}
+			log.Printf("Clash 出口已恢复：%s", core.NodeName)
+		}()
+	}
+
 	// VPS 出入口：按上次的启用状态恢复 SSH 隧道。
 	if st.Copy().VPS.Enabled {
 		go func() {
@@ -125,7 +142,7 @@ func main() {
 		log.Fatalf("监听 %s 失败：%v", cfg.Listen, err)
 	}
 
-	log.Printf("AnyWhere WorkStation 管理服务 v%s 已启动", config.Version)
+	log.Printf("Vmbra WorkStation 管理服务 v%s 已启动", config.Version)
 	log.Printf("数据目录：%s", cfg.DataDir)
 	log.Printf("控制台：http://%s/?token=%s", cfg.Listen, cfg.Token)
 
@@ -162,6 +179,7 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 	defer cancel()
 	_ = httpSrv.Shutdown(ctx)
+	svc.Clash.Stop()
 	svc.VPSTunnel.Stop()
 	drv.CloseAll()
 	log.Printf("已关闭")

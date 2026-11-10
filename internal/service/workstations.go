@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"anywhere/internal/store"
+	"github.com/4869-001/vmbra/internal/store"
 )
 
 // WorkstationInput 是新建工作站的参数。

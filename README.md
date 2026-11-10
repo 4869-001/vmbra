@@ -2,7 +2,8 @@
 
 macOS 上的**隔离工作站**：在本机提供一个"可运行不可信内容"的隔离执行环境，配一个只监听回环地址的本地管理服务、一个内嵌 Web 控制台，以及一套独立部署的商业授权中心。
 
-> 代码内部代号仍是 `anywhere` / `anywhered`，数据目录 `~/.anywhere`。产品对外名称为 **Vmbra**，改名不影响运行与历史数据。
+> 全链路命名统一为 **Vmbra**：Go 模块 `github.com/4869-001/vmbra`、主进程 `vmbrad`、数据目录 `~/.vmbra`、桌面壳 `Vmbra.app`。
+> 从旧版（`anywhere` / `anywhered` / `~/.anywhere`）升级时，首次启动会自动把数据目录整体迁移到 `~/.vmbra`，授权与工作站数据不丢。
 
 ---
 
@@ -10,7 +11,7 @@ macOS 上的**隔离工作站**：在本机提供一个"可运行不可信内容
 
 ```
 vmbra/
-├── cmd/anywhered/          管理服务入口（Go 单二进制）
+├── cmd/vmbrad/          管理服务入口（Go 单二进制）
 ├── cmd/vmbra-link/         交付工具：把 VPS 信息生成客户可导入的开通链接
 ├── internal/               服务端全部实现（见下方模块表）
 │   ├── api/                HTTP 路由、鉴权、WebSocket 通道
@@ -18,7 +19,7 @@ vmbra/
 │   ├── importlink/         开通链接编解码（vmbra://import/<base64url>）
 │   ├── sandbox/            sandbox-exec 策略、PTY 会话、工作区文件系统、快照
 │   ├── tasks/              后台任务队列（实时日志、取消、持久化）
-│   ├── store/              状态持久化（原子写 ~/.anywhere/state.json）
+│   ├── store/              状态持久化（原子写 ~/.vmbra/state.json）
 │   ├── license/            授权中心客户端（设备指纹、激活、心跳、离线宽限）
 │   ├── vps/                SSH 隧道出口（SOCKS + 远程转发）
 │   ├── browser/            受控 Chrome（独立 profile、语言/时区/出口对齐）
@@ -28,7 +29,9 @@ vmbra/
 │   ├── config/             环境变量与路径
 │   ├── webui/              内嵌控制台（原生 JS + xterm.js + noVNC，无构建步骤）
 │   └── wsx/                WebSocket 读写小工具
-├── desktop/                桌面外壳（Swift / WKWebView，swiftc 直接编译）
+├── desktop/                桌面外壳（Swift / WKWebView，swiftc 直接编译）+ Vmbra.icns
+├── assets/brand/           品牌母版：vmbra-1024.png（App 图标源）· vmbra-glyph.png（单色 V 形）
+├── scripts/make-icon.sh    母版 PNG → .icns + 控制台 logo（sips / iconutil，无第三方依赖）
 ├── scripts/vmbra-setup/    客户端一键环境配置（幂等 bash，NDJSON 进度）
 ├── license-service/        授权中心（Node ≥18，零第三方依赖）
 ├── bin/                    双击入口：激活 / 一键配置
@@ -45,7 +48,7 @@ Vmbra 是 **四层 + 两条旁路** 的结构：本地一侧是被隔离的执�
 ```
 ┌──────────────────────────── 客户端（用户 Mac）─────────────────────────────┐
 │  ① 接入层                                                                  │
-│     桌面外壳 AnyWhere.app (Swift/WKWebView)   ← 拉起/守护 →   浏览器控制台  │
+│     桌面外壳 Vmbra.app (Swift/WKWebView)   ← 拉起/守护 →   浏览器控制台  │
 │            └────────────── HTTP + WebSocket（127.0.0.1:7788）─────────────┐ │
 │  ② 接口层  internal/api + internal/wsx                                     │ │
 │     Host 校验 · 令牌鉴权 · Origin 校验 · 静态资源 · 终端/VNC/任务 WS       │ │
@@ -67,7 +70,7 @@ Vmbra 是 **四层 + 两条旁路** 的结构：本地一侧是被隔离的执�
 
 | 层 | 模块 | 职责 |
 | --- | --- | --- |
-| 接入 | `desktop/main.swift` | WKWebView 外壳；探测 `127.0.0.1:7788`，未响应则用包内 `anywhered` 拉起；状态灯轮询、菜单快捷键 |
+| 接入 | `desktop/main.swift` | WKWebView 外壳；探测 `127.0.0.1:7788`，未响应则用包内 `vmbrad` 拉起；状态灯轮询、菜单快捷键 |
 | 接入 | `internal/webui` | 九个板块的控制台（工作站/文件/应用/网络/环境/维护/任务/诊断/设置），`embed.FS` 打进二进制 |
 | 接口 | `internal/api` | 路由 + `guard` 中间件（Host 白名单、令牌、Origin）、JSON 响应、WS 升级 |
 | 业务 | `internal/service` | 唯一装配业务状态的层：读写 `store`、调 `sandbox`/`vps`/`browser`、提交 `tasks` |
@@ -86,7 +89,7 @@ Vmbra 是 **四层 + 两条旁路** 的结构：本地一侧是被隔离的执�
 控制台无构建步骤：`boot.js` 拉状态，`views-*.js` 分板块渲染，终端走 xterm.js，桌面走 noVNC。
 
 **2. 隔离执行**
-`service` 组装环境（`.anywhere.env`：语言/时区/DNS/代理）→ `sandbox.Exec/StartShell` →
+`service` 组装环境（`.vmbra.env`：语言/时区/DNS/代理）→ `sandbox.Exec/StartShell` →
 `sandbox-exec -f .policy.*.sbpl` 内起 `sh`/PTY/脚本 → 输出经 `tasks` 环形缓冲推给 WS 或落日志。
 超时回收整个进程组，避免孙进程逃逸。
 
@@ -104,7 +107,7 @@ Vmbra 是 **四层 + 两条旁路** 的结构：本地一侧是被隔离的执�
 | 维度 | 策略 |
 | --- | --- |
 | 文件读 | 放行系统运行时，显式拒绝文稿/桌面/下载/图片/`.ssh`/`.aws`/`Keychains`/`Cookies` |
-| 文件写 | 仅 `~/.anywhere/workstation` 与系统临时区 |
+| 文件写 | 仅 `~/.vmbra/workstation` 与系统临时区 |
 | 网络 | 默认 `deny network*`；开启"工作站出网"后才放行，关闭时回环一并拒绝 |
 | 进程 | 允许 `process-exec`/`process-fork`，信号仅限自身，超时回收进程组 |
 | 资源 | `ulimit -t/-f/-n`；内存上限需虚拟机后端提供 |
@@ -122,6 +125,7 @@ Vmbra 是 **四层 + 两条旁路** 的结构：本地一侧是被隔离的执�
 | 隔离 | macOS `sandbox-exec`（SBPL）+ `ulimit` + PTY |
 | 授权中心 | Node ≥18 标准库（`http`/`crypto`），数据落 `data/db.json` |
 | 安装脚本 | bash（幂等，NDJSON 事件），可选 lima 虚拟机后端 |
+| 品牌 | `assets/brand/vmbra-1024.png` 为唯一母版，`make icon` 生成 `.icns` 与控制台各尺寸 |
 
 ---
 
@@ -129,11 +133,11 @@ Vmbra 是 **四层 + 两条旁路** 的结构：本地一侧是被隔离的执�
 
 ```bash
 # 客户端（依赖 macOS + Go 1.23+，不需要 Docker / 虚拟机）
-make build                 # → bin/anywhered
+make build                 # → bin/vmbrad
 make run                   # 前台启动，终端打印带令牌的控制台地址
-open dist/AnyWhere.app     # 需要桌面壳时：make app
+make app                   # → dist/Vmbra.app（含图标，双击即用）
 
-# 授权中心
+# 授权中心（本地调试；上线走 deploy/ 的 docker compose）
 cd license-service
 export ADMIN_PASSWORD='强密码'
 export HMAC_SECRET="$(openssl rand -hex 32)"
@@ -189,10 +193,12 @@ vmbra-link ── vmbra://import/<payload> ──▶ 桌面壳（注册 vmbra://
 
 - [`docs/app-manual.md`](docs/app-manual.md) —— 客户端功能手册（隔离模型、九个板块、开通链接、接口清单、数据目录）
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) —— 架构详解（包依赖、状态机、协议、授权时序、构建分发）
-- [`license-service/README.md`](license-service/README.md) —— 授权中心部署与运营
+- [`license-service/README.md`](license-service/README.md) —— 授权中心接口与运营
+- [`deploy/README.md`](deploy/README.md) —— 云服务器部署（docker compose + Caddy 自动 HTTPS）
 
 ## 分发前必须做
 
-- `.app` 用 Developer ID 签名 + `notarytool` 公证，否则客户双击报"无法验证开发者"
-- `license-service` 部署在带 HTTPS 的机器上，置 `TRUST_PROXY=true`，`data/db.json` 每日备份
+- `.app` 用 Developer ID 签名 + `notarytool` 公证，否则客户双击报"无法验证开发者"（`CODESIGN_IDENTITY` 传给 `desktop/build.sh`）
+- 授权中心按 [`deploy/README.md`](deploy/README.md) 部署在带 HTTPS 的机器上，`TRUST_PROXY=true`
 - `HMAC_SECRET` / `ADMIN_PASSWORD` 必须替换，不能用默认值
+- `~/.vmbra`（客户端）与授权中心的数据卷每日备份

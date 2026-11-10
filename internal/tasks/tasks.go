@@ -15,7 +15,7 @@ import (
 	"sync"
 	"time"
 
-	"anywhere/internal/store"
+	"github.com/4869-001/vmbra/internal/store"
 )
 
 const (

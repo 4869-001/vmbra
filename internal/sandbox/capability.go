@@ -62,9 +62,9 @@ func (d *Driver) runProbe(ctx context.Context, network bool, timeout time.Durati
 }
 
 func (d *Driver) capExec(ctx context.Context, network bool) Capability {
-	out, res := d.runProbe(ctx, network, 8*time.Second, "/bin/echo", "anywhere-probe")
+	out, res := d.runProbe(ctx, network, 8*time.Second, "/bin/echo", "vmbra-probe")
 	c := Capability{ID: "exec", Title: "进程启动", Expected: "allow", Fatal: true}
-	if res.ExitCode == 0 && strings.Contains(out, "anywhere-probe") {
+	if res.ExitCode == 0 && strings.Contains(out, "vmbra-probe") {
 		c.Actual, c.OK = "allow", true
 		c.Detail = "隔离环境内可执行命令"
 		return c
@@ -82,7 +82,7 @@ func (d *Driver) capWrite(ctx context.Context, network, inside bool) Capability 
 		dir, id, title = d.Workspace, "write-inside", "工作区内写入"
 		c = Capability{ID: id, Title: title, Expected: "allow", Fatal: true}
 	}
-	path := filepath.Join(dir, fmt.Sprintf(".anywhere-probe-%d", os.Getpid()))
+	path := filepath.Join(dir, fmt.Sprintf(".vmbra-probe-%d", os.Getpid()))
 
 	// 探针文件用 pid 命名，结束后无论如何都清掉，避免污染用户目录或工作区。
 	_ = os.Remove(path)

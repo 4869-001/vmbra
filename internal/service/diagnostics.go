@@ -15,8 +15,8 @@ import (
 	"syscall"
 	"time"
 
-	"anywhere/internal/config"
-	"anywhere/internal/sandbox"
+	"github.com/4869-001/vmbra/internal/config"
+	"github.com/4869-001/vmbra/internal/sandbox"
 )
 
 // Check 是一项诊断结果。
@@ -43,9 +43,9 @@ func (s *Service) Diagnostics(ctx context.Context) map[string]any {
 
 	// 令牌权限
 	if info, err := os.Stat(s.Cfg.TokenPath()); err != nil {
-		checks = append(checks, Check{ID: "token", Title: "访问令牌", Status: "fail", Detail: "令牌文件不可读：" + err.Error(), Hint: "删除 ~/.anywhere/token 后重启服务可重新生成"})
+		checks = append(checks, Check{ID: "token", Title: "访问令牌", Status: "fail", Detail: "令牌文件不可读：" + err.Error(), Hint: "删除 ~/.vmbra/token 后重启服务可重新生成"})
 	} else if perm := info.Mode().Perm(); perm&0o077 != 0 {
-		checks = append(checks, Check{ID: "token", Title: "访问令牌", Status: "warn", Detail: "令牌文件权限过于宽松：" + perm.String(), Hint: "执行 chmod 600 ~/.anywhere/token"})
+		checks = append(checks, Check{ID: "token", Title: "访问令牌", Status: "warn", Detail: "令牌文件权限过于宽松：" + perm.String(), Hint: "执行 chmod 600 ~/.vmbra/token"})
 	} else {
 		checks = append(checks, Check{ID: "token", Title: "访问令牌", Status: "ok", Detail: "权限 0600，仅当前用户可读"})
 	}

@@ -1,0 +1,29 @@
+# 域名由 .env 的 VMBRA_DOMAIN 注入，证书自动申请与续期（Let's Encrypt）。
+{$VMBRA_DOMAIN} {
+	encode zstd gzip
+
+	# 管理台体积小，限一下上传；接口本身只收 JSON
+	request_body {
+		max_size 4MB
+	}
+
+	reverse_proxy license:8787 {
+		header_up X-Real-IP {remote_host}
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "no-referrer"
+		-Server
+	}
+
+	log {
+		output file /data/access.log {
+			roll_size 20mb
+			roll_keep 5
+		}
+		format console
+	}
+}

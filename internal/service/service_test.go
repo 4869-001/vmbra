@@ -15,17 +15,17 @@ import (
 	"testing"
 	"time"
 
-	"anywhere/internal/browser"
-	"anywhere/internal/config"
-	"anywhere/internal/sandbox"
-	"anywhere/internal/store"
-	"anywhere/internal/tasks"
+	"github.com/4869-001/vmbra/internal/browser"
+	"github.com/4869-001/vmbra/internal/config"
+	"github.com/4869-001/vmbra/internal/sandbox"
+	"github.com/4869-001/vmbra/internal/store"
+	"github.com/4869-001/vmbra/internal/tasks"
 )
 
 func newTestService(t *testing.T) *Service {
 	t.Helper()
 	dir := t.TempDir()
-	t.Setenv("ANYWHERE_DATA_DIR", dir)
+	t.Setenv("VMBRA_DATA_DIR", dir)
 	cfg, err := config.Load()
 	if err != nil {
 		t.Fatal(err)
@@ -54,7 +54,7 @@ func TestWorkstationLifecycle(t *testing.T) {
 	if info["state"] != "running" {
 		t.Fatalf("状态应为 running，实际 %v", info["state"])
 	}
-	if _, err := os.Stat(filepath.Join(s.Drv.Home, ".anywhere-init")); err != nil {
+	if _, err := os.Stat(filepath.Join(s.Drv.Home, ".vmbra-init")); err != nil {
 		t.Fatalf("初始化标记缺失：%v", err)
 	}
 	if _, err := os.Stat(filepath.Join(s.Drv.Home, ".zshrc")); err != nil {
@@ -140,7 +140,7 @@ func TestLocaleAppliedToShellEnv(t *testing.T) {
 	if env["TERM"] != "xterm-256color" || env["COLORTERM"] != "truecolor" {
 		t.Fatalf("终端环境不正确：%v / %v", env["TERM"], env["COLORTERM"])
 	}
-	b, err := os.ReadFile(filepath.Join(s.Drv.Home, ".anywhere.env"))
+	b, err := os.ReadFile(filepath.Join(s.Drv.Home, ".vmbra.env"))
 	if err != nil {
 		t.Fatalf("统一环境文件缺失：%v", err)
 	}
@@ -579,7 +579,7 @@ func TestVPSConfigAndKey(t *testing.T) {
 
 func TestPendingTaskInterruptedOnRestart(t *testing.T) {
 	dir := t.TempDir()
-	t.Setenv("ANYWHERE_DATA_DIR", dir)
+	t.Setenv("VMBRA_DATA_DIR", dir)
 	cfg, _ := config.Load()
 	st, _ := store.Open(cfg.StatePath())
 	_ = st.UpsertTask(store.TaskRecord{ID: "tdead", Kind: "snapshot", Title: "遗留", Status: "running", CreatedAt: time.Now().UTC()})

@@ -14,9 +14,9 @@ import (
 	"strings"
 	"time"
 
-	"anywhere/internal/config"
-	"anywhere/internal/sandbox"
-	"anywhere/internal/store"
+	"github.com/4869-001/vmbra/internal/config"
+	"github.com/4869-001/vmbra/internal/sandbox"
+	"github.com/4869-001/vmbra/internal/store"
 )
 
 // supportedLocales 是控制台提供的语言/文字选项，全部为 UTF-8，保证中文不乱码。
@@ -58,7 +58,7 @@ func (s *Service) SystemInfo() map[string]any {
 		"dnsRecent":     s.DNS.Recent(),
 		"dnsError":      s.dnsError(),
 		"env":           preview,
-		"shellEnvPath":  filepath.Join(s.Drv.Home, ".anywhere.env"),
+		"shellEnvPath":  filepath.Join(s.Drv.Home, ".vmbra.env"),
 		"hostDNS":       hostResolvers(),
 		"terminal":      s.TerminalInfo(st),
 		"network":       st.Settings.NetworkEnabled,
@@ -152,18 +152,18 @@ func (s *Service) SystemEnv(st store.State) map[string]string {
 		"TZ":                   st.Locale.Timezone,
 		"TERM":                 "xterm-256color",
 		"COLORTERM":            "truecolor",
-		"TERM_PROGRAM":         "AnyWhere",
+		"TERM_PROGRAM":         "Vmbra",
 		"TERM_PROGRAM_VERSION": config.Version,
-		"ANYWHERE":             "1",
-		"ANYWHERE_WORKSTATION": st.Current().Name,
-		"ANYWHERE_ENCODING":    st.Locale.Encoding,
+		"VMBRA":                "1",
+		"VMBRA_WORKSTATION":    st.Current().Name,
+		"VMBRA_ENCODING":       st.Locale.Encoding,
 	}
 	if dns := s.dnsEndpoint(st); dns != "" {
-		env["ANYWHERE_DNS_SERVER"] = dns
+		env["VMBRA_DNS_SERVER"] = dns
 		env["RES_OPTIONS"] = "timeout:2 attempts:2"
 	}
 	if len(st.DNS.Servers) > 0 {
-		env["ANYWHERE_DNS_UPSTREAM"] = strings.Join(st.DNS.Servers, " ")
+		env["VMBRA_DNS_UPSTREAM"] = strings.Join(st.DNS.Servers, " ")
 	}
 	for _, kv := range st.Env {
 		key := strings.TrimSpace(kv.Key)
@@ -173,7 +173,7 @@ func (s *Service) SystemEnv(st store.State) map[string]string {
 		env[key] = kv.Value
 	}
 	if len(st.Mounts) > 0 {
-		env["ANYWHERE_MOUNTS"] = strings.Join(st.Mounts, ":")
+		env["VMBRA_MOUNTS"] = strings.Join(st.Mounts, ":")
 	}
 	if st.Settings.NetworkEnabled {
 		switch st.Proxy.Mode {
@@ -206,8 +206,18 @@ func (s *Service) SystemEnv(st store.State) map[string]string {
 					env["NO_PROXY"] = "localhost,127.0.0.1,::1"
 					env["no_proxy"] = env["NO_PROXY"]
 				}
-				env["ANYWHERE_VPS_EXIT"] = st.VPS.Host
+				env["VMBRA_VPS_EXIT"] = st.VPS.Host
 			}
+		}
+		// Clash 内核运行时，它才是唯一出口（与 VPS 隧道互斥，取后者更明确的配置）。
+		if st.ProxyCore.Running && st.ProxyCore.SOCKSProxy != "" {
+			env["ALL_PROXY"], env["all_proxy"] = st.ProxyCore.SOCKSProxy, st.ProxyCore.SOCKSProxy
+			if st.ProxyCore.HTTPProxy != "" {
+				env["HTTP_PROXY"], env["http_proxy"] = st.ProxyCore.HTTPProxy, st.ProxyCore.HTTPProxy
+				env["HTTPS_PROXY"], env["https_proxy"] = st.ProxyCore.HTTPProxy, st.ProxyCore.HTTPProxy
+			}
+			env["NO_PROXY"], env["no_proxy"] = "localhost,127.0.0.1,::1", "localhost,127.0.0.1,::1"
+			env["VMBRA_PROXY_NODE"] = st.ProxyCore.NodeName
 		}
 	}
 	return env
@@ -223,11 +233,11 @@ func (s *Service) WriteShellEnv() error {
 	}
 	sort.Strings(keys)
 	var b strings.Builder
-	b.WriteString("# 由 AnyWhere WorkStation 自动生成，修改设置后会被覆盖\n")
+	b.WriteString("# 由 Vmbra WorkStation 自动生成，修改设置后会被覆盖\n")
 	for _, k := range keys {
 		b.WriteString("export " + k + "=" + shellQuote(env[k]) + "\n")
 	}
-	path := filepath.Join(s.Drv.Home, ".anywhere.env")
+	path := filepath.Join(s.Drv.Home, ".vmbra.env")
 	if err := os.WriteFile(path, []byte(b.String()), 0o644); err != nil {
 		return err
 	}

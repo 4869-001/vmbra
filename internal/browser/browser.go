@@ -138,6 +138,13 @@ func BuildArgs(cfg Config) ([]string, error) {
 		args = append(args,
 			"--proxy-server="+cfg.ProxyURL,
 			"--proxy-bypass-list=localhost;127.0.0.1;[::1];<local>",
+			// 让 DNS 也走代理，避免本地解析暴露真实位置
+			"--host-resolver-rules=MAP * ~NOTFOUND , EXCLUDE localhost",
+			// QUIC 走 UDP，绕过 HTTP 代理，直接禁掉
+			"--disable-quic",
+			// WebRTC 不走代理的 UDP 通道同样会泄漏
+			"--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
+			"--dns-prefetch-disable",
 		)
 	}
 	if cfg.OpenURL != "" {
@@ -212,7 +219,7 @@ func Verify(ctx context.Context, cfg Config) (VerifyResult, error) {
 	if err != nil {
 		return VerifyResult{}, err
 	}
-	profile, err := os.MkdirTemp("", "anywhere-browser-verify-*")
+	profile, err := os.MkdirTemp("", "vmbra-browser-verify-*")
 	if err != nil {
 		return VerifyResult{}, err
 	}
@@ -278,7 +285,7 @@ func WriteStartPage(profileDir, lang, timeZone string) (string, error) {
 	tzJSON, _ := json.Marshal(timeZone)
 	page := `<!doctype html>
 <html lang="en"><head><meta charset="utf-8" />
-<title>AnyWhere · Controlled Browser</title>
+<title>Vmbra · Controlled Browser</title>
 <style>
  :root { color-scheme: dark; }
  body { margin:0; font: 15px/1.6 -apple-system, "SF Pro Text", "Helvetica Neue", sans-serif;
@@ -293,7 +300,7 @@ func WriteStartPage(profileDir, lang, timeZone string) (string, error) {
  .hint { margin-top:20px; padding:12px 14px; border-radius:10px; background:#10141d; color:#8b93a7; font-size:12.5px; }
 </style></head>
 <body><div class="box">
- <h1>AnyWhere 受控浏览器</h1>
+ <h1>Vmbra 受控浏览器</h1>
  <div class="sub">独立 profile · 语言与时区按控制台配置固定 · 日常 Chrome 不受影响</div>
  <div class="row"><span>配置时区</span><span class="mono" id="cfg-tz"></span></div>
  <div class="row"><span>实际时区</span><span class="mono" id="tz"></span></div>

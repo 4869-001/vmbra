@@ -11,10 +11,10 @@ import (
 	"strings"
 	"time"
 
-	"anywhere/internal/deb"
-	"anywhere/internal/sandbox"
-	"anywhere/internal/store"
-	"anywhere/internal/tasks"
+	"github.com/4869-001/vmbra/internal/deb"
+	"github.com/4869-001/vmbra/internal/sandbox"
+	"github.com/4869-001/vmbra/internal/store"
+	"github.com/4869-001/vmbra/internal/tasks"
 )
 
 // DesktopStatus 汇总图形桌面后端状态。

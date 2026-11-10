@@ -101,23 +101,23 @@ func (d *Driver) setup() error {
 // seedShellConfig 写入沙箱家目录的 shell 配置，让终端呈现一致的工作站身份。
 func (d *Driver) seedShellConfig() error {
 	zshrc := strings.Join([]string{
-		"# 由 AnyWhere WorkStation 管理，请勿手工修改",
+		"# 由 Vmbra WorkStation 管理，请勿手工修改",
 		`export PATH="/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"`,
 		`export HISTFILE="$HOME/.zsh_history"`,
 		`export HISTSIZE=2000`,
 		// 统一环境由管理服务写入，语言/时区/代理/DNS 与脚本、任务完全一致。
-		`[ -f "$HOME/.anywhere.env" ] && . "$HOME/.anywhere.env"`,
-		`PROMPT='%F{blue}workstation%f@anywhere:%~ %# '`,
+		`[ -f "$HOME/.vmbra.env" ] && . "$HOME/.vmbra.env"`,
+		`PROMPT='%F{blue}workstation%f@vmbra:%~ %# '`,
 		`RPROMPT='%F{240}%D{%H:%M}%f'`,
 		"alias ll='ls -la'",
 		"alias gs='git status -sb'",
 		"unset http_proxy https_proxy all_proxy HTTP_PROXY HTTPS_PROXY ALL_PROXY",
-		`[ -f "$HOME/.anywhere-init" ] || true`,
+		`[ -f "$HOME/.vmbra-init" ] || true`,
 		"",
 	}, "\n")
 	profile := strings.Join([]string{
 		`export PATH="/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"`,
-		`export PS1='workstation@anywhere:\\w \\$ '`,
+		`export PS1='workstation@vmbra:\\w \\$ '`,
 		"",
 	}, "\n")
 	for name, content := range map[string]string{".zshrc": zshrc, ".zprofile": profile, ".profile": profile} {
@@ -203,7 +203,7 @@ func (d *Driver) BaseEnv() []string {
 		"SHELL=/bin/zsh",
 		"TERM=xterm-256color",
 		"LANG=C.UTF-8",
-		"ANYWHERE=1",
+		"VMBRA=1",
 	}
 }
 
@@ -362,9 +362,9 @@ func (d *Driver) StartShell(kind string, env map[string]string, network bool) (*
 	cmd := exec.Command(argv[0], argv[1:]...)
 	cmd.Dir = d.Workspace
 	cmd.Env = append(d.mergeEnv(env),
-		"PS1=workstation@anywhere:\\w$ ",
-		"PROMPT=workstation@anywhere:%~ %# ",
-		"ANYWHERE_SESSION="+kind,
+		"PS1=workstation@vmbra:\\w$ ",
+		"PROMPT=workstation@vmbra:%~ %# ",
+		"VMBRA_SESSION="+kind,
 	)
 	pt, err := pty.Start(cmd)
 	if err != nil {

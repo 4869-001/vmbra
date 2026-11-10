@@ -16,7 +16,7 @@ import (
 	"os"
 	"strings"
 
-	"anywhere/internal/importlink"
+	"github.com/4869-001/vmbra/internal/importlink"
 )
 
 func main() {

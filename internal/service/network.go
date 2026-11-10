@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"anywhere/internal/forward"
-	"anywhere/internal/store"
+	"github.com/4869-001/vmbra/internal/forward"
+	"github.com/4869-001/vmbra/internal/store"
 )
 
 // NetworkInfo 返回网络面板数据（含转发规则运行状态）。
@@ -31,6 +31,7 @@ func (s *Service) NetworkInfo() map[string]any {
 		"network":  st.Settings.NetworkEnabled,
 		"note":     note,
 		"driver":   st.Current().Driver,
+		"egress":   s.Gate.Snapshot(),
 	}
 }
 
@@ -225,11 +226,18 @@ func (s *Service) TestConnection(host string, port int) ConnectionResult {
 }
 
 // ToggleNetwork 开关工作站出网。
+// 开启时会立即过一次闸门：检查不通过就自动回滚为关闭，避免「看起来开了其实全断」。
 func (s *Service) ToggleNetwork(enabled bool) map[string]any {
+	if !enabled {
+		s.Gate.Invalidate("用户关闭工作站出网")
+	}
 	_ = s.Store.Update(func(st *store.State) {
 		st.Settings.NetworkEnabled = enabled
 		s.mirrorActiveEnv(st)
 	})
 	_ = s.WriteShellEnv()
+	if enabled {
+		s.CheckEgressNow()
+	}
 	return s.NetworkInfo()
 }

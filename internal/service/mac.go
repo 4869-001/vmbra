@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"anywhere/internal/store"
+	"github.com/4869-001/vmbra/internal/store"
 )
 
 // ErrMacControlDisabled 表示“操控 Mac”能力未开启。

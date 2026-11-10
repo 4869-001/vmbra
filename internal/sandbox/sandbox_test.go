@@ -57,7 +57,7 @@ func TestWriteInsideWorkspace(t *testing.T) {
 func TestWriteOutsideDenied(t *testing.T) {
 	d := newTestDriver(t)
 	home, _ := os.UserHomeDir()
-	target := filepath.Join(home, ".anywhere-sandbox-escape-test.txt")
+	target := filepath.Join(home, ".vmbra-sandbox-escape-test.txt")
 	_ = os.Remove(target)
 	_, _, res := d.RunOutput(context.Background(), ExecRequest{
 		Argv:    []string{"/bin/sh", "-c", "printf bad > " + target},

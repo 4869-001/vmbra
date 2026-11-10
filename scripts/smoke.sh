@@ -4,9 +4,9 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PORT="${SMOKE_PORT:-7791}"
-DATA="$(mktemp -d /tmp/anywhere-smoke.XXXXXX)"
+DATA="$(mktemp -d /tmp/vmbra-smoke.XXXXXX)"
 LOG="$DATA/daemon.log"
-BIN="$DATA/anywhered"
+BIN="$DATA/vmbrad"
 PASS=0
 FAIL=0
 
@@ -32,8 +32,8 @@ check() { # check <描述> <实际> <期望子串>
 }
 
 say "编译"
-(cd "$ROOT" && go build -o "$BIN" ./cmd/anywhered)
-ok "anywhered 编译完成"
+(cd "$ROOT" && go build -o "$BIN" ./cmd/vmbrad)
+ok "vmbrad 编译完成"
 
 say "启动临时实例（端口 ${PORT}）"
 "$BIN" --port "$PORT" --data-dir "$DATA/state" >"$LOG" 2>&1 &
@@ -43,7 +43,7 @@ for _ in $(seq 1 60); do
   sleep 0.2
 done
 TOKEN="$(cat "$DATA/state/token")"
-H=(-H "X-Anywhere-Token: $TOKEN")
+H=(-H "X-Vmbra-Token: $TOKEN")
 BASE="http://127.0.0.1:$PORT"
 api() { curl -sS "${H[@]}" "$@"; }
 ok "服务已就绪"
@@ -153,7 +153,7 @@ say "系统语言文字"
 check "语言环境为 UTF-8" "$(api "$BASE/api/system")" '"encoding":"UTF-8"'
 check "应用中文语言" "$(api -X PATCH "${H[@]}" -H 'Content-Type: application/json' \
   -d '{"lang":"zh_CN.UTF-8","timezone":"Asia/Shanghai"}' "$BASE/api/system/locale")" '"lang":"zh_CN.UTF-8"'
-check "环境文件已落地" "$(cat "$DATA/state/workstation/home/.anywhere.env")" "export LANG='zh_CN.UTF-8'"
+check "环境文件已落地" "$(cat "$DATA/state/workstation/home/.vmbra.env")" "export LANG='zh_CN.UTF-8'"
 check "拒绝非 UTF-8 编码" "$(api -X PATCH "${H[@]}" -H 'Content-Type: application/json' \
   -d '{"encoding":"GBK"}' "$BASE/api/system/locale")" '仅支持 UTF-8'
 

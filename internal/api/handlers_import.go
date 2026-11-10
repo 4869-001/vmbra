@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"anywhere/internal/service"
+	"github.com/4869-001/vmbra/internal/service"
 )
 
 // importRequest 同时用于预览与应用：预览只读 link，其余字段可留空。

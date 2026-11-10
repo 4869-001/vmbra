@@ -149,8 +149,8 @@
 
     async function shot() {
       try {
-        const res = await fetch("/api/mac/screen", { headers: { "X-Anywhere-Token": A.token } });
-        const warn = res.headers.get("X-Anywhere-Warning");
+        const res = await fetch("/api/mac/screen", { headers: { "X-Vmbra-Token": A.token } });
+        const warn = res.headers.get("X-Vmbra-Warning");
         if (!res.ok) throw new Error((await res.json()).error || "截屏失败");
         const blob = await res.blob();
         if (url) URL.revokeObjectURL(url);

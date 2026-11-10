@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"anywhere/internal/config"
-	"anywhere/internal/service"
+	"github.com/4869-001/vmbra/internal/config"
+	"github.com/4869-001/vmbra/internal/service"
 )
 
 // Server 承载路由与鉴权。
@@ -73,6 +73,11 @@ func (s *Server) routes() {
 	m.HandleFunc("POST /api/system/dns/test", s.handleSystemDNSTest)
 	m.HandleFunc("POST /api/network/egress", s.handleEgress)
 
+	// 出口闸门（租约 + 证据 + 一键修复）
+	m.HandleFunc("GET /api/egress", s.handleEgressGate)
+	m.HandleFunc("POST /api/egress/check", s.handleEgressCheck)
+	m.HandleFunc("POST /api/egress/repair", s.handleEgressRepair)
+
 	// 文件
 	m.HandleFunc("GET /api/files", s.handleFileList)
 	m.HandleFunc("GET /api/files/content", s.handleFileRead)
@@ -88,6 +93,17 @@ func (s *Server) routes() {
 	m.HandleFunc("PATCH /api/network/forwards/{id}", s.handleForwardPatch)
 	m.HandleFunc("DELETE /api/network/forwards/{id}", s.handleForwardDelete)
 	m.HandleFunc("PUT /api/network/proxy", s.handleProxyUpdate)
+
+	// 代理订阅（Clash / Mihomo）：导入链接 → 选节点 → 自动对齐环境
+	m.HandleFunc("GET /api/proxy", s.handleClashView)
+	m.HandleFunc("POST /api/proxy/import", s.handleClashImport)
+	m.HandleFunc("POST /api/proxy/apply", s.handleClashApply)
+	m.HandleFunc("POST /api/proxy/select", s.handleClashSelect)
+	m.HandleFunc("POST /api/proxy/delay", s.handleClashDelay)
+	m.HandleFunc("POST /api/proxy/refresh", s.handleClashRefresh)
+	m.HandleFunc("POST /api/proxy/stop", s.handleClashStop)
+	m.HandleFunc("DELETE /api/proxy/sources/{id}", s.handleClashSourceDelete)
+	m.HandleFunc("DELETE /api/proxy/nodes/{id}", s.handleClashNodeDelete)
 	m.HandleFunc("PUT /api/network/toggle", s.handleNetworkToggle)
 	m.HandleFunc("POST /api/network/test", s.handleNetworkTest)
 	m.HandleFunc("POST /api/network/forwards/{id}/test", s.handleForwardTest)
@@ -202,12 +218,12 @@ func hostAllowed(host string) bool {
 }
 
 func (s *Server) tokenOK(r *http.Request) bool {
-	candidate := r.Header.Get("X-Anywhere-Token")
+	candidate := r.Header.Get("X-Vmbra-Token")
 	if candidate == "" {
 		candidate = r.URL.Query().Get("token")
 	}
 	if candidate == "" {
-		if c, err := r.Cookie("anywhere_token"); err == nil {
+		if c, err := r.Cookie("vmbra_token"); err == nil {
 			candidate = c.Value
 		}
 	}
@@ -237,11 +253,11 @@ func (s *Server) handleStatic(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "控制台资源缺失", http.StatusInternalServerError)
 			return
 		}
-		body := strings.ReplaceAll(string(html), "__ANYWHERE_TOKEN__", s.cfg.Token)
+		body := strings.ReplaceAll(string(html), "__VMBRA_TOKEN__", s.cfg.Token)
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-store")
 		http.SetCookie(w, &http.Cookie{
-			Name:     "anywhere_token",
+			Name:     "vmbra_token",
 			Value:    s.cfg.Token,
 			Path:     "/",
 			HttpOnly: true,

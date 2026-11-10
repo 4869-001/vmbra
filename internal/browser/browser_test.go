@@ -29,7 +29,7 @@ func TestBuildArgs(t *testing.T) {
 		Lang:       "en-US",
 		TimeZone:   "America/Los_Angeles",
 		ProxyURL:   "socks5://127.0.0.1:1080",
-		ProfileDir: "/tmp/anywhere-profile",
+		ProfileDir: "/tmp/vmbra-profile",
 	}
 	args, err := BuildArgs(cfg)
 	if err != nil {
@@ -37,7 +37,7 @@ func TestBuildArgs(t *testing.T) {
 	}
 	line := strings.Join(args, " ")
 	for _, want := range []string{
-		"--user-data-dir=/tmp/anywhere-profile",
+		"--user-data-dir=/tmp/vmbra-profile",
 		"--lang=en-US",
 		"--accept-lang=en-US,en",
 		"--proxy-server=socks5://127.0.0.1:1080",
@@ -107,7 +107,7 @@ func TestEnsurePrefsMergesExisting(t *testing.T) {
 }
 
 func TestBuildArgsOpensTargetURL(t *testing.T) {
-	base := Config{Lang: "en-US", TimeZone: "America/Los_Angeles", ProfileDir: "/tmp/anywhere-profile"}
+	base := Config{Lang: "en-US", TimeZone: "America/Los_Angeles", ProfileDir: "/tmp/vmbra-profile"}
 	args, err := BuildArgs(base)
 	if err != nil {
 		t.Fatal(err)

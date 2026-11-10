@@ -19,7 +19,7 @@
     const locale = system.locale || {};
     const locales = system.locales || ["zh_CN.UTF-8", "en_US.UTF-8"];
     const envPreview = (system.env || []).filter(function (kv) {
-      return ["LANG", "LC_ALL", "LC_CTYPE", "TZ", "TERM", "COLORTERM", "ANYWHERE_DNS_SERVER", "HTTPS_PROXY", "TERM_PROGRAM"].indexOf(kv.key) >= 0;
+      return ["LANG", "LC_ALL", "LC_CTYPE", "TZ", "TERM", "COLORTERM", "VMBRA_DNS_SERVER", "HTTPS_PROXY", "TERM_PROGRAM"].indexOf(kv.key) >= 0;
     });
 
     root.innerHTML =

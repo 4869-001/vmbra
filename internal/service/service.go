@@ -12,13 +12,15 @@ import (
 	"sync"
 	"time"
 
-	"anywhere/internal/config"
-	"anywhere/internal/dnsproxy"
-	"anywhere/internal/forward"
-	"anywhere/internal/sandbox"
-	"anywhere/internal/store"
-	"anywhere/internal/tasks"
-	"anywhere/internal/vps"
+	"github.com/4869-001/vmbra/internal/clash"
+	"github.com/4869-001/vmbra/internal/config"
+	"github.com/4869-001/vmbra/internal/dnsproxy"
+	"github.com/4869-001/vmbra/internal/egress"
+	"github.com/4869-001/vmbra/internal/forward"
+	"github.com/4869-001/vmbra/internal/sandbox"
+	"github.com/4869-001/vmbra/internal/store"
+	"github.com/4869-001/vmbra/internal/tasks"
+	"github.com/4869-001/vmbra/internal/vps"
 )
 
 // ErrConflict 表示当前状态不允许该操作。
@@ -35,6 +37,12 @@ type Service struct {
 
 	// VPSTunnel 让工作站借用远端 VPS 的公网出入口。
 	VPSTunnel *vps.Tunnel
+
+	// Clash 托管本机 mihomo 内核，承载 Clash 订阅导入后的出口链路。
+	Clash *clash.Core
+
+	// Gate 是出网闸门：检查通过才有租约，失败或过期立即断网。
+	Gate *egress.Gate
 
 	startedAt time.Time
 
@@ -55,6 +63,8 @@ func New(cfg *config.Config, st *store.Store, drv *sandbox.Driver, tm *tasks.Man
 		DNS:          dnsproxy.New(d.Servers),
 		Fwd:          forward.New(),
 		VPSTunnel:    vps.New(),
+		Clash:        clash.NewCore(cfg.DataDir),
+		Gate:         egress.New(egressTTL),
 		startedAt:    time.Now(),
 		desktopState: "stopped",
 	}
@@ -206,7 +216,7 @@ func (s *Service) StartWorkstation(ctx context.Context) (map[string]any, error) 
 		Argv: []string{"/bin/sh", "-c", strings.Join([]string{
 			"set -e",
 			"mkdir -p \"$HOME/projects\" \"$HOME/scripts\" \"$HOME/.config\"",
-			"printf '{\"managed_by\":\"anywhere\",\"version\":\"%s\"}\\n' > \"$HOME/.anywhere-init\"",
+			"printf '{\"managed_by\":\"vmbra\",\"version\":\"%s\"}\\n' > \"$HOME/.vmbra-init\"",
 			"date -u +%Y-%m-%dT%H:%M:%SZ > \"$HOME/.boot-time\"",
 			"printf 'boot ok\\n'",
 		}, "; ")},

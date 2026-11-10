@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
-	"anywhere/internal/browser"
-	"anywhere/internal/store"
+	"github.com/4869-001/vmbra/internal/browser"
+	"github.com/4869-001/vmbra/internal/store"
 )
 
 // browserProfileDir 返回受控浏览器的独立配置目录。
@@ -20,7 +22,7 @@ func (s *Service) browserProfileDir(cfg store.Browser) string {
 	return filepath.Join(s.Cfg.DataDir, "browser", strings.ToLower(strings.ReplaceAll(cfg.Lang, "-", "_")))
 }
 
-// WriteBrowserLauncher 生成 ~/.anywhere/bin/chrome-us，供桌面图标或脚本直接调用，
+// WriteBrowserLauncher 生成 ~/.vmbra/bin/chrome-us，供桌面图标或脚本直接调用，
 // 逻辑与「应用 → 受控浏览器」完全一致。
 func (s *Service) WriteBrowserLauncher() error {
 	st := s.Store.Copy()
@@ -37,7 +39,7 @@ func (s *Service) WriteBrowserLauncher() error {
 	path := filepath.Join(dir, "chrome-us")
 	_, _ = browser.WriteStartPage(profile, cfg.Lang, cfg.TimeZone)
 	script := fmt.Sprintf(`#!/bin/bash
-# 由 AnyWhere 自动生成，请勿手改：受控浏览器 %[1]s · %[2]s
+# 由 Vmbra 自动生成，请勿手改：受控浏览器 %[1]s · %[2]s
 set -e
 CHROME=%[3]s
 PROFILE=%[4]s
@@ -56,8 +58,11 @@ data["intl"] = intl
 open(path, "w").write(json.dumps(data))
 PY
 ARGS=(--user-data-dir="$PROFILE" --lang=%[1]s --accept-lang=%[5]s --no-first-run --no-default-browser-check --new-window)
-if [ %[6]s = "1" ] && /usr/bin/nc -z 127.0.0.1 %[7]d >/dev/null 2>&1; then
-  ARGS+=(--proxy-server="socks5://127.0.0.1:%[7]d" --proxy-bypass-list="localhost;127.0.0.1;[::1];<local>")
+PROXY_ARGS=(--proxy-bypass-list="localhost;127.0.0.1;[::1];<local>" "--host-resolver-rules=MAP * ~NOTFOUND , EXCLUDE localhost" --disable-quic "--force-webrtc-ip-handling-policy=disable_non_proxied_udp" --dns-prefetch-disable)
+if [ %[8]d -gt 0 ] && /usr/bin/nc -z 127.0.0.1 %[8]d >/dev/null 2>&1; then
+  ARGS+=(--proxy-server="http://127.0.0.1:%[8]d" "${PROXY_ARGS[@]}")
+elif [ %[6]s = "1" ] && /usr/bin/nc -z 127.0.0.1 %[7]d >/dev/null 2>&1; then
+  ARGS+=(--proxy-server="socks5://127.0.0.1:%[7]d" "${PROXY_ARGS[@]}")
 fi
 if ! /usr/bin/pgrep -f -- "--user-data-dir=$PROFILE" >/dev/null 2>&1 && [ -f "$PROFILE/start.html" ]; then
   ARGS+=("file://$PROFILE/start.html")
@@ -71,11 +76,44 @@ TZ=%[2]s exec "$CHROME" "${ARGS[@]}"
 		shellQuote(browser.AcceptLanguage(cfg.Lang)),
 		boolFlag(cfg.UseVPSEgress),
 		st.VPS.SOCKSPort,
+		s.clashBrowserPort(),
 	)
 	if err := os.WriteFile(path, []byte(script), 0o700); err != nil {
 		return err
 	}
 	return nil
+}
+
+// clashBrowserPort 返回内核给浏览器开的免认证端口；内核未运行时为 0。
+func (s *Service) clashBrowserPort() int {
+	if !s.Clash.Running() {
+		return 0
+	}
+	u, err := url.Parse(s.Clash.BrowserProxy())
+	if err != nil {
+		return 0
+	}
+	port, err := strconv.Atoi(u.Port())
+	if err != nil {
+		return 0
+	}
+	return port
+}
+
+// browserProxyURL 决定浏览器走哪条出口：Clash 内核优先，其次 VPS 隧道。
+func (s *Service) browserProxyURL(st store.State) (string, string) {
+	if s.Clash.Running() {
+		if p := s.Clash.BrowserProxy(); p != "" {
+			return p, ""
+		}
+	}
+	if st.Browser.UseVPSEgress && s.VPSTunnel.Running() {
+		return "socks5://" + s.VPSTunnel.SOCKSAddr(), ""
+	}
+	if st.Browser.UseVPSEgress {
+		return "", "VPS 隧道未运行：本次浏览器走宿主网络，时区与语言已按配置固定"
+	}
+	return "", ""
 }
 
 func boolFlag(v bool) string {
@@ -89,10 +127,7 @@ func boolFlag(v bool) string {
 func (s *Service) BrowserStatus() map[string]any {
 	st := s.Store.Copy()
 	profile := s.browserProfileDir(st.Browser)
-	proxy := ""
-	if st.Browser.UseVPSEgress && s.VPSTunnel.Running() {
-		proxy = "socks5://" + s.VPSTunnel.SOCKSAddr()
-	}
+	proxy, _ := s.browserProxyURL(st)
 	out := map[string]any{
 		"config":         st.Browser,
 		"profile":        profile,
@@ -174,14 +209,7 @@ func (s *Service) OpenBrowser(target string) (map[string]any, error) {
 		return nil, errors.New("只支持 http/https 地址")
 	}
 	st := s.Store.Copy()
-	proxy, warn := "", ""
-	if st.Browser.UseVPSEgress {
-		if s.VPSTunnel.Running() {
-			proxy = "socks5://" + s.VPSTunnel.SOCKSAddr()
-		} else {
-			warn = "VPS 隧道未运行：本次浏览器走宿主网络，时区与语言已按配置固定"
-		}
-	}
+	proxy, warn := s.browserProxyURL(st)
 	profile := s.browserProfileDir(st.Browser)
 	res, err := browser.Launch(browser.Config{
 		Lang:       st.Browser.Lang,

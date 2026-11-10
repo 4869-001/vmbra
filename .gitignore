@@ -1,5 +1,5 @@
 # 构建产物
-/bin/anywhered
+/bin/vmbrad
 /dist/
 /.playwright-cli/
 *.log
@@ -11,6 +11,7 @@ license-service/data/
 license-service/*.local.json
 .env
 .env.*
+!deploy/.env.example
 *.pem
 *.key
 

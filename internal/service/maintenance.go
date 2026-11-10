@@ -8,9 +8,9 @@ import (
 	"os"
 	"time"
 
-	"anywhere/internal/sandbox"
-	"anywhere/internal/store"
-	"anywhere/internal/tasks"
+	"github.com/4869-001/vmbra/internal/sandbox"
+	"github.com/4869-001/vmbra/internal/store"
+	"github.com/4869-001/vmbra/internal/tasks"
 )
 
 // Snapshots 返回全部快照。

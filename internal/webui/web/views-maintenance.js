@@ -140,7 +140,7 @@
         const a = document.createElement("a");
         const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
         a.href = url;
-        a.download = "anywhere-workspace-" + stamp + ".tar.gz";
+        a.download = "vmbra-workspace-" + stamp + ".tar.gz";
         document.body.appendChild(a);
         a.click();
         a.remove();

@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"time"
 
-	"anywhere/internal/service"
+	"github.com/4869-001/vmbra/internal/service"
 )
 
 // ---- 系统层（语言文字 / DNS / 出口 / 运行脚本） ----

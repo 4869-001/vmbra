@@ -13,11 +13,11 @@ import (
 	"strings"
 	"time"
 
-	"anywhere/internal/store"
-	"anywhere/internal/vps"
+	"github.com/4869-001/vmbra/internal/store"
+	"github.com/4869-001/vmbra/internal/vps"
 )
 
-const vpsKeyComment = "anywhere-workstation"
+const vpsKeyComment = "vmbra-workstation"
 
 var vpsLangPattern = regexp.MustCompile(`^[a-z]{2,3}(-[A-Z]{2})?$`)
 
@@ -284,7 +284,7 @@ func (s *Service) TestVPS(ctx context.Context) (map[string]any, error) {
 		"-i", cfg.KeyPath,
 		"-l", cfg.User,
 		cfg.Host,
-		"echo anywhere-vps-ok",
+		"echo vmbra-vps-ok",
 	}
 	ctx, cancel := context.WithTimeout(ctx, 12*time.Second)
 	defer cancel()
@@ -295,7 +295,7 @@ func (s *Service) TestVPS(ctx context.Context) (map[string]any, error) {
 		res["error"] = err.Error()
 		return res, nil
 	}
-	if !strings.Contains(text, "anywhere-vps-ok") {
+	if !strings.Contains(text, "vmbra-vps-ok") {
 		res["ok"] = false
 		res["error"] = "登录成功但未收到预期回显"
 	}

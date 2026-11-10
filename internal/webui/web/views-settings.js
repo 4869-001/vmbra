@@ -139,7 +139,7 @@
 
       '<section class="card">' +
         '<div class="card-head"><div><div class="card-title">关于</div>' +
-          '<div class="card-sub">AnyWhere WorkStation · 本地隔离工作站</div></div>' +
+          '<div class="card-sub">Vmbra WorkStation · 本地隔离工作站</div></div>' +
           '<span class="chip blue">v' + E(d.version) + "</span></div>" +
         '<div class="card-body">' +
           '<div class="grid-2">' +

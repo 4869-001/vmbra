@@ -1,0 +1,46 @@
+# Vmbra 授权中心 · 云服务器一键部署
+#   1) cp .env.example .env && 按注释填好
+#   2) docker compose up -d --build
+#   3) 打开 https://<VMBRA_DOMAIN>/admin
+name: vmbra-license
+
+services:
+  license:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    image: vmbra/license-service:latest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATA_DIR: /data
+      HOST: 0.0.0.0
+      PORT: "8787"
+      # 前面有 Caddy 反代，必须信任 X-Forwarded-For，否则 IP 白名单会看到 127.0.0.1
+      TRUST_PROXY: "true"
+    volumes:
+      # 授权码、设备绑定、事件日志都在这里，务必纳入备份
+      - license-data:/data
+    expose:
+      - "8787"
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      license:
+        condition: service_started
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      VMBRA_DOMAIN: ${VMBRA_DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  license-data:
+  caddy-data:
+  caddy-config:

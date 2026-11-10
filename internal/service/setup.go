@@ -10,8 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"anywhere/internal/importlink"
-	"anywhere/internal/tasks"
+	"github.com/4869-001/vmbra/internal/importlink"
+	"github.com/4869-001/vmbra/internal/tasks"
 )
 
 // setupTotalSteps 是 setup.sh 的固定阶段数，用于进度条分母。

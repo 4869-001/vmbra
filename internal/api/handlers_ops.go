@@ -8,9 +8,9 @@ import (
 	"os"
 	"time"
 
-	"anywhere/internal/service"
-	"anywhere/internal/store"
-	"anywhere/internal/wsx"
+	"github.com/4869-001/vmbra/internal/service"
+	"github.com/4869-001/vmbra/internal/store"
+	"github.com/4869-001/vmbra/internal/wsx"
 )
 
 // ---- 网络 ----
@@ -193,7 +193,7 @@ func (s *Server) handleWorkspaceExport(w http.ResponseWriter, r *http.Request) {
 	}
 	defer f.Close()
 
-	name := "anywhere-workspace-" + time.Now().Format("20060102-150405") + ".tar.gz"
+	name := "vmbra-workspace-" + time.Now().Format("20060102-150405") + ".tar.gz"
 	w.Header().Set("Content-Type", "application/gzip")
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", name))
 	w.Header().Set("Cache-Control", "no-store")
@@ -285,7 +285,7 @@ func (s *Server) handleDiagnosticsBundle(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	w.Header().Set("Content-Type", "application/zip")
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", "anywhere-diagnostics-"+time.Now().Format("20060102-150405")+".zip"))
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", "vmbra-diagnostics-"+time.Now().Format("20060102-150405")+".zip"))
 	_, _ = w.Write(data)
 }
 
@@ -318,7 +318,7 @@ func (s *Server) handleTokenRotate(w http.ResponseWriter, r *http.Request) {
 	}
 	// 旧令牌立即失效，重新下发 cookie 以保持当前会话可用
 	http.SetCookie(w, &http.Cookie{
-		Name:     "anywhere_token",
+		Name:     "vmbra_token",
 		Value:    token,
 		Path:     "/",
 		HttpOnly: true,
@@ -343,7 +343,7 @@ func (s *Server) handleMacScreen(w http.ResponseWriter, r *http.Request) {
 	noCache(w)
 	w.Header().Set("Content-Type", "image/png")
 	if err != nil {
-		w.Header().Set("X-Anywhere-Warning", err.Error())
+		w.Header().Set("X-Vmbra-Warning", err.Error())
 	}
 	_, _ = w.Write(data)
 }

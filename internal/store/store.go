@@ -66,6 +66,25 @@ type Proxy struct {
 	DNSPatch bool   `json:"dnsPatch"`
 }
 
+// ProxyCore 记录本机 Clash 内核（mihomo）的出口状态与探测到的地区信息。
+// 它是「导出订阅 → 自动对齐语言/时区」这条链路的落盘结果，
+// 界面只读它就能回答「我现在从哪出网、环境跟出口一致吗」。
+type ProxyCore struct {
+	Running     bool      `json:"running"`
+	NodeID      string    `json:"nodeId"`
+	NodeName    string    `json:"nodeName"`
+	NodeType    string    `json:"nodeType"`
+	ExitIP      string    `json:"exitIp"`
+	Country     string    `json:"country"`
+	CountryCode string    `json:"countryCode"`
+	City        string    `json:"city"`
+	TimeZone    string    `json:"timeZone"`
+	HTTPProxy   string    `json:"httpProxy"`
+	SOCKSProxy  string    `json:"socksProxy"`
+	CoreBinary  string    `json:"coreBinary"`
+	UpdatedAt   time.Time `json:"updatedAt"`
+}
+
 // EnvVar 是注入到工作站会话的环境变量。
 type EnvVar struct {
 	Key   string `json:"key"`
@@ -199,6 +218,7 @@ type State struct {
 	DNS          DNS            `json:"dns"`
 	Forwards     []PortForward  `json:"forwards"`
 	Proxy        Proxy          `json:"proxy"`
+	ProxyCore    ProxyCore      `json:"proxyCore"`
 	Desktop      Desktop        `json:"desktop"`
 	Browser      Browser        `json:"browser"`
 	VPS          VPS            `json:"vps"`

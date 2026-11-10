@@ -1,14 +1,14 @@
-// AnyWhere 工作站 · 桌面外壳
+// Vmbra 工作站 · 桌面外壳
 //
 // 只做三件事，界面完全交给控制台本身（保持既有设计，不再叠一层原生侧边栏）：
-//   1. 起服务：探测 127.0.0.1:7788，没有就用包内的 anywhered 拉起；
+//   1. 起服务：探测 127.0.0.1:7788，没有就用包内的 vmbrad 拉起；
 //   2. 起工作站：连上后若处于 stopped 则自动启动；
 //   3. 提供窗口与菜单：深链跳转、生命周期、受控浏览器。
 
 import AppKit
 import WebKit
 
-let baseURL = ProcessInfo.processInfo.environment["ANYWHERE_BASE"] ?? "http://127.0.0.1:7788"
+let baseURL = ProcessInfo.processInfo.environment["VMBRA_BASE"] ?? "http://127.0.0.1:7788"
 
 final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
     private var window: NSWindow!
@@ -28,9 +28,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
     ]
 
     private lazy var token: String = {
-        let path = NSString(string: "~/.anywhere/token").expandingTildeInPath
-        let raw = (try? String(contentsOfFile: path, encoding: .utf8)) ?? ""
-        return raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        // 新数据目录优先，兼容尚未迁移的老目录（~/.anywhere）。
+        for path in ["~/.vmbra/token", "~/.anywhere/token"] {
+            let real = NSString(string: path).expandingTildeInPath
+            let raw = (try? String(contentsOfFile: real, encoding: .utf8)) ?? ""
+            let value = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !value.isEmpty { return value }
+        }
+        return ""
     }()
 
     // MARK: - 生命周期
@@ -79,6 +84,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         pollTimer?.invalidate()
+        // 只结束自己拉起的服务；附着到别处已在跑的服务时不动它。
+        // 否则退出后残留的旧 vmbrad 会一直占着 7788，换新包后仍在跑旧逻辑。
+        if let d = daemon, d.isRunning {
+            d.terminate()
+        }
     }
 
     // MARK: - 窗口
@@ -90,8 +100,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
             backing: .buffered,
             defer: false
         )
-        window.title = "AnyWhere 工作站"
-        window.setFrameAutosaveName("AnyWhereDesktopWindow")
+        window.title = "Vmbra 工作站"
+        window.setFrameAutosaveName("VmbraDesktopWindow")
         window.center()
         window.minSize = NSSize(width: 960, height: 620)
 
@@ -113,7 +123,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
     }
 
     private func setTitle(_ suffix: String) {
-        window.title = "AnyWhere 工作站" + (suffix.isEmpty ? "" : " · " + suffix)
+        window.title = "Vmbra 工作站" + (suffix.isEmpty ? "" : " · " + suffix)
     }
 
     // MARK: - 菜单
@@ -123,7 +133,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
 
         let appItem = NSMenuItem()
         let appMenu = NSMenu()
-        appMenu.addItem(withTitle: "关于 AnyWhere 工作站", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
+        appMenu.addItem(withTitle: "关于 Vmbra 工作站", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
         appMenu.addItem(.separator())
         appMenu.addItem(withTitle: "隐藏", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
         appMenu.addItem(.separator())
@@ -222,7 +232,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
         var request = URLRequest(url: url)
         request.httpMethod = method
         request.timeoutInterval = 8
-        request.setValue(token, forHTTPHeaderField: "X-Anywhere-Token")
+        request.setValue(token, forHTTPHeaderField: "X-Vmbra-Token")
         if let body = body, let payload = try? JSONSerialization.data(withJSONObject: body) {
             request.httpBody = payload
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -257,16 +267,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
 
     private func daemonBinary() -> String? {
         var candidates: [String] = []
-        if let env = ProcessInfo.processInfo.environment["ANYWHERE_BIN"] { candidates.append(env) }
-        if let res = Bundle.main.resourcePath { candidates.append(res + "/anywhered") }
-        candidates.append(NSString(string: "~/.anywhere/bin/anywhered").expandingTildeInPath)
+        if let env = ProcessInfo.processInfo.environment["VMBRA_BIN"] { candidates.append(env) }
+        if let res = Bundle.main.resourcePath { candidates.append(res + "/vmbrad") }
+        candidates.append(NSString(string: "~/.vmbra/bin/vmbrad").expandingTildeInPath)
         return candidates.first { FileManager.default.isExecutableFile(atPath: $0) }
     }
 
     private func spawn(_ binary: String) {
         let task = Process()
         task.executableURL = URL(fileURLWithPath: binary)
-        let logDir = NSString(string: "~/.anywhere/logs").expandingTildeInPath
+        let logDir = NSString(string: "~/.vmbra/logs").expandingTildeInPath
         try? FileManager.default.createDirectory(atPath: logDir, withIntermediateDirectories: true)
         let logPath = logDir + "/desktop-launch.log"
         if !FileManager.default.fileExists(atPath: logPath) {

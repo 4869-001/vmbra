@@ -3,7 +3,7 @@
   "use strict";
 
   const App = {
-    token: (document.querySelector('meta[name="anywhere-token"]') || {}).content || "",
+    token: (document.querySelector('meta[name="vmbra-token"]') || {}).content || "",
     status: null,
     route: "",
     views: {},
@@ -16,8 +16,9 @@
     { key: "workstation", label: "工作站", icon: "monitor" },
     { key: "files", label: "文件", icon: "folder" },
     { key: "apps", label: "应用", icon: "grid" },
-    { key: "network", label: "网络", icon: "network" },
-    { key: "env", label: "环境", icon: "globe" },
+    { key: "exit", label: "出口", icon: "network" },
+    { key: "network", label: "网络 · 高级", icon: "network" },
+    { key: "env", label: "环境 · 高级", icon: "globe" },
     { key: "maintenance", label: "维护与恢复", icon: "shield" },
     { key: "tasks", label: "任务", icon: "list" },
     { key: "diagnostics", label: "诊断", icon: "activity" },
@@ -128,7 +129,7 @@
   /* ---------------- API ---------------- */
   App.api = async function (path, opts) {
     opts = opts || {};
-    const headers = { "X-Anywhere-Token": App.token };
+    const headers = { "X-Vmbra-Token": App.token };
     let body = opts.raw;
     if (opts.body !== undefined) {
       headers["Content-Type"] = "application/json";

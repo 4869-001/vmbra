@@ -12,9 +12,9 @@ import (
 	"strings"
 	"time"
 
-	"anywhere/internal/sandbox"
-	"anywhere/internal/service"
-	"anywhere/internal/wsx"
+	"github.com/4869-001/vmbra/internal/sandbox"
+	"github.com/4869-001/vmbra/internal/service"
+	"github.com/4869-001/vmbra/internal/wsx"
 )
 
 func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {

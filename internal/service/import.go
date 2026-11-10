@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"anywhere/internal/importlink"
-	"anywhere/internal/store"
-	"anywhere/internal/vps"
+	"github.com/4869-001/vmbra/internal/importlink"
+	"github.com/4869-001/vmbra/internal/store"
+	"github.com/4869-001/vmbra/internal/vps"
 )
 
 // ImportOptions 控制一次开通链接导入要执行的动作。
