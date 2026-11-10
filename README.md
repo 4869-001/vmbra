@@ -21,6 +21,8 @@ vmbra/
 │   ├── tasks/              后台任务队列（实时日志、取消、持久化）
 │   ├── store/              状态持久化（原子写 ~/.vmbra/state.json）
 │   ├── license/            授权中心客户端（设备指纹、激活、心跳、离线宽限）
+│   ├── clash/              Clash/Mihomo 订阅解析 + 本机内核托管（多节点、热切换、测速）
+│   ├── egress/             出口闸门（90 秒租约、复核、失败即断网）
 │   ├── vps/                SSH 隧道出口（SOCKS + 远程转发）
 │   ├── browser/            受控 Chrome（独立 profile、语言/时区/出口对齐）
 │   ├── dnsproxy/           本地 DNS 转发器（UDP 中继、上游切换）
@@ -35,7 +37,8 @@ vmbra/
 ├── scripts/vmbra-setup/    客户端一键环境配置（幂等 bash，NDJSON 进度）
 ├── license-service/        授权中心（Node ≥18，零第三方依赖）
 ├── bin/                    双击入口：激活 / 一键配置
-├── docs/                   app-manual.md（功能手册） · ARCHITECTURE.md（架构详解）
+├── docs/                   README.md（索引） · app-manual.md（功能手册） · ARCHITECTURE.md（架构详解）
+├── CHANGELOG.md            全量更新日志（按版本记录新增/变更/修复/安全/验证）
 ├── Makefile · go.mod
 ```
 
@@ -76,6 +79,8 @@ Vmbra 是 **四层 + 两条旁路** 的结构：本地一侧是被隔离的执�
 | 业务 | `internal/service` | 唯一装配业务状态的层：读写 `store`、调 `sandbox`/`vps`/`browser`、提交 `tasks` |
 | 能力 | `internal/sandbox` | 生成 `.policy.nonet.sbpl` / `.policy.net.sbpl`，以 `sandbox-exec` + `ulimit` 起进程；PTY 会话；工作区快照 |
 | 能力 | `internal/tasks` | 串行队列 + 单任务实时日志环形缓冲 + 取消 + 状态落库 |
+| 能力 | `internal/clash` | 解析 Clash/V2Ray 订阅，托管本机 mihomo，全部节点入配置，控制接口热切换与测速 |
+| 能力 | `internal/egress` | 出口闸门：检查通过发 90 秒租约，30 秒复核，失败或过期立即收回 |
 | 能力 | `internal/vps` | 维护出口隧道进程（ssh `-D`/`-R`）、日志缓冲、连通与出口 IP 探测 |
 | 能力 | `internal/license` | 设备指纹（sha256）、激活、心跳、离线宽限判定 |
 | 基础 | `internal/store` | `state.json` 原子写 + 进程内快照，归一化旧结构 |
@@ -99,8 +104,12 @@ Vmbra 是 **四层 + 两条旁路** 的结构：本地一侧是被隔离的执�
 签发 HMAC 令牌 + 下发套餐与出口节点 → 客户端落库并启动后台心跳；令牌过期后进入离线宽限期。
 
 **4. 出口**
-授权中心下发 `host:port` → `internal/vps` 建立 SSH 隧道 → `internal/browser` 注入 `--proxy-server`
-及时区/语言 → 网络页、终端、诊断共享同一出口。
+两条链路二选一，均由 `internal/egress` 统一裁决：
+① 订阅链路：控制台粘贴 Clash 订阅 → `internal/clash` 解析并托管 mihomo（回环 + 控制接口 secret）→
+探测出口 IP/地区 → 按地区回写语言、时区、代理与 `.vmbra.env`；
+② 隧道链路：授权中心下发 `host:port` → `internal/vps` 建立 SSH 隧道。
+放行前必须过闸门 9 项检查（出口可达、地区、语言、时区、DNS、IPv6 泄漏等），通过后发放 90 秒租约；
+租约到期、检查失败或换节点即切断，并写 `egress.close` 审计。浏览器、终端、任务、诊断共享同一出口。
 
 ### 隔离与安全边界
 
@@ -108,7 +117,7 @@ Vmbra 是 **四层 + 两条旁路** 的结构：本地一侧是被隔离的执�
 | --- | --- |
 | 文件读 | 放行系统运行时，显式拒绝文稿/桌面/下载/图片/`.ssh`/`.aws`/`Keychains`/`Cookies` |
 | 文件写 | 仅 `~/.vmbra/workstation` 与系统临时区 |
-| 网络 | 默认 `deny network*`；开启"工作站出网"后才放行，关闭时回环一并拒绝 |
+| 网络 | 默认 `deny network*`；放行由出口闸门控制（90 秒租约 + 30 秒复核），失败即自动断开 |
 | 进程 | 允许 `process-exec`/`process-fork`，信号仅限自身，超时回收进程组 |
 | 资源 | `ulimit -t/-f/-n`；内存上限需虚拟机后端提供 |
 | 身份 | 以宿主用户运行，**不提供 root** |
@@ -191,6 +200,8 @@ vmbra-link ── vmbra://import/<payload> ──▶ 桌面壳（注册 vmbra://
 
 ## 文档
 
+- [`docs/README.md`](docs/README.md) —— 文档索引与目录/提交规范（先读这个）
+- [`CHANGELOG.md`](CHANGELOG.md) —— 全量更新日志（含每个版本的验证方式）
 - [`docs/app-manual.md`](docs/app-manual.md) —— 客户端功能手册（隔离模型、九个板块、开通链接、接口清单、数据目录）
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) —— 架构详解（包依赖、状态机、协议、授权时序、构建分发）
 - [`license-service/README.md`](license-service/README.md) —— 授权中心接口与运营

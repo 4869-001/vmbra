@@ -20,6 +20,8 @@ cmd/vmbrad
                                                  │
    service ──┬── sandbox   (策略/PTY/文件/快照)
              ├── tasks     (队列/日志/取消)
+             ├── clash     (订阅解析 / mihomo 内核托管)
+             ├── egress    (出口闸门 / 租约)
              ├── vps       (ssh 隧道)
              ├── browser   (受控 Chrome)
              ├── dnsproxy  (UDP 中继)
@@ -216,7 +218,34 @@ preview ──▶ 客户勾选 ──▶ apply
   用户仍可手工执行页面给出的一次性安装命令。
 - **版本可演进**：`v` 高于客户端支持版本时直接拒绝并提示升级，避免旧客户端半解析新载荷。
 
-## 12. 扩展点与已知边界
+## 12. 出口与闸门
+
+```
+订阅(链接/粘贴) → clash.Parse → ~/.vmbra/proxy/sources.json
+                                     │
+                        选中节点 → clash.Core.StartAll(全部节点, 选中)
+                                     │  生成 runtime.yaml（回环 + external-controller + secret）
+                                     ▼
+                        probeExit(经内核) → exitInfo{ip, country, city, timezone}
+                                     │
+              localeForCountry(cc) → Locale/Browser 回写 + .vmbra.env 重写
+                                     ▼
+                        egress.Gate.Open(report) ── 90s 租约 ──┐
+                                     ▲                        │ 每 30s RenewEgress
+                                     └── CheckEgress 9 项 ────┘
+                          失败/过期 → Close + 关闭 NetworkEnabled + 审计
+```
+
+要点：
+
+- **单出口**：启用内核会停掉 VPS 隧道，避免两条链路同时生效导致出口漂移。
+- **热切换**：全部节点一次写进 `runtime.yaml`，切节点走控制接口 `PUT /proxies/EGRESS`，不重启进程。
+- **测速**：`GET /proxies/{name}/delay`，并发上限 6，结果按延迟升序返回。
+- **失败即断网**：`enforceEgressClosed` 是唯一的收口点，保证「管理进程被 kill」的最坏影响只有一个租约周期。
+- **无口令入站**：mihomo 的 `authentication` 是全局的，会给 Chrome 返回 `407`；因此入站只监听回环、不设口令，
+  控制接口仍用 secret，浏览器与终端共用同一出口。
+
+## 13. 扩展点与已知边界
 
 - **虚拟机后端**：`Workstation.Driver = lima` 已留位；内存上限、root 场景、独立网络栈需该后端提供。
 - **网络出口**：本地进程隔离共享宿主网络栈，因此"出口"默认是宿主出口；要独立公网 IP 需 VPS 隧道或虚拟机后端。
